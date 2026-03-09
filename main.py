@@ -16,10 +16,12 @@ logging.basicConfig(
     format='[{asctime}] [{levelname:<8}] {name}: {message}',
     style='{',
 )
-logger = logging.getLogger('bot')
+
+logger = logging.getLogger("bot")
 
 
 class MyBot(commands.Bot):
+
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.guilds = True
@@ -27,58 +29,73 @@ class MyBot(commands.Bot):
         intents.messages = True
         intents.message_content = True
         intents.voice_states = True
-        super().__init__(command_prefix=Config.BOT.PREFIX, intents=intents, help_command=None)
 
+        super().__init__(
+            command_prefix=Config.BOT.PREFIX,
+            intents=intents,
+            help_command=None
+        )
+
+        # repositories
         self.profile_repository = ProfileRepository(Config.DATA.PROFILES_DB_PATH)
         self.panel_state_repository = PanelStateRepository(Config.DATA.PANEL_STATE_PATH)
+
+        # services
         self.profile_service = ProfileService(self.profile_repository)
         self.panel_service = PanelService(self.panel_state_repository)
 
+        # cogs
         self.cogs_list = (
-            'cogs.welcome',
-            'cogs.rules',
-            'cogs.profiles',
-            'cogs.games',
-            'cogs.report_panel',
-            'cogs.notification',
+            "cogs.welcome",
+            "cogs.rules",
+            "cogs.profiles",
+            "cogs.games",
+            "cogs.report_panel",
+            "cogs.notification",
         )
 
-    async def setup_hook(self) -> None:
+    async def setup_hook(self):
+
         for extension in self.cogs_list:
             try:
                 await self.load_extension(extension)
-                logger.info(f'Загружен cog: {extension}')
+                logger.info(f"Загружен cog: {extension}")
             except Exception:
-                logger.exception(f'Ошибка загрузки {extension}')
+                logger.exception(f"Ошибка загрузки {extension}")
 
-    async def close(self) -> None:
+    async def close(self):
+
         try:
             self.profile_repository.close()
         finally:
             await super().close()
 
-    async def on_ready(self) -> None:
+    async def on_ready(self):
+
         if self.user is None:
             return
+
         try:
-            self.tree.clear_commands(guild=None)
-            await self.tree.sync()
+            synced = await self.tree.sync()
 
-            synced = await self.tree.sync(guild=Config.BOT.SERVER_OBJECT)
             logger.info(
-                f'Бот запущен как {self.user} (ID: {self.user.id}) | '
-                f'Guild slash-команд синхронизировано: {len(synced)}'
+                f"Бот запущен как {self.user} (ID: {self.user.id}) | "
+                f"Slash-команд синхронизировано: {len(synced)}"
             )
+
         except Exception:
-            logger.exception('Ошибка синхронизации slash-команд')
+            logger.exception("Ошибка синхронизации slash-команд")
 
 
-async def main() -> None:
+async def main():
+
     Config.validate()
+
     bot = MyBot()
+
     async with bot:
         await bot.start(Config.BOT.TOKEN)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())
