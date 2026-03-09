@@ -215,4 +215,4 @@ class ShopCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(ShopCog(bot), guild=Config.SERVER_OBJ)
+    await bot.add_cog(ShopCog(bot))
