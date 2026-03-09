@@ -9,7 +9,7 @@ HEIGHT = 500
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-FONT_PATH = BASE_DIR / "assets" / "fonts" / "Inter-Bold.ttf"
+FONT_PATH = BASE_DIR / "assets" / "fonts" / "Inter-Bold.otf"
 WINDOWS_FALLBACK_FONT = Path("C:/Windows/Fonts/arial.ttf")
 
 
