@@ -60,16 +60,16 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
-
         for extension in self.cogs_list:
             try:
                 await self.load_extension(extension)
                 logger.info(f"Загружен cog: {extension}")
             except Exception:
                 logger.exception(f"Ошибка загрузки {extension}")
+
         try:
-            synced = await self.tree.sync()
-            logger.info(f"Slash-команд синхронизировано: {len(synced)}")
+            synced = await self.tree.sync(guild=Config.SERVER_OBJ)
+            logger.info(f"Guild slash-команд синхронизировано: {len(synced)}")
         except Exception:
             logger.exception("Ошибка синхронизации slash-команд")
 
