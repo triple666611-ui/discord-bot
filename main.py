@@ -67,6 +67,11 @@ class MyBot(commands.Bot):
                 logger.info(f"Загружен cog: {extension}")
             except Exception:
                 logger.exception(f"Ошибка загрузки {extension}")
+        try:
+            synced = await self.tree.sync()
+            logger.info(f"Slash-команд синхронизировано: {len(synced)}")
+        except Exception:
+            logger.exception("Ошибка синхронизации slash-команд")
 
     async def close(self):
 
@@ -76,20 +81,12 @@ class MyBot(commands.Bot):
             await super().close()
 
     async def on_ready(self):
-
         if self.user is None:
             return
 
-        try:
-            synced = await self.tree.sync()
-
-            logger.info(
-                f"Бот запущен как {self.user} (ID: {self.user.id}) | "
-                f"Slash-команд синхронизировано: {len(synced)}"
-            )
-
-        except Exception:
-            logger.exception("Ошибка синхронизации slash-команд")
+        logger.info(
+            f"Бот запущен как {self.user} (ID: {self.user.id})"
+    )
 
 
 async def main():
