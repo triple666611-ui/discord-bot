@@ -68,9 +68,6 @@ class MyBot(commands.Bot):
                 logger.exception(f"Ошибка загрузки {extension}")
 
         try:
-            self.tree.clear_commands(guild=None)
-            await self.tree.sync()
-
             synced = await self.tree.sync(guild=Config.SERVER_OBJ)
             logger.info(f"Guild slash-команд синхронизировано: {len(synced)}")
         except Exception:
