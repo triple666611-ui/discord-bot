@@ -244,31 +244,33 @@ class ShopRepository:
         finally:
             self._release(conn)
 
-    def set_effect(
-        self,
-        user_id: int,
-        effect_key: str,
-        value: str,
-        expires_ts: int | None = None,
-    ) -> None:
+    def set_effect(self, user_id: int, effect_key: str, value: str, expires_ts: int | None = None):
         conn = self._connect()
-        now_ts = int(time.time())
 
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO shop_effects (user_id, effect_key, value, expires_ts, updated_ts)
+                    INSERT INTO shop_effects
+                    (user_id, effect_key, effect_value, expires_ts, updated_ts)
                     VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (user_id, effect_key)
                     DO UPDATE SET
-                        value = EXCLUDED.value,
+                        effect_value = EXCLUDED.effect_value,
                         expires_ts = EXCLUDED.expires_ts,
                         updated_ts = EXCLUDED.updated_ts
                     """,
-                    (user_id, effect_key, value, expires_ts, now_ts),
+                    (
+                        user_id,
+                        effect_key,
+                        value,
+                        expires_ts,
+                        int(time.time())
+                    )
                 )
+
             conn.commit()
+
         finally:
             self._release(conn)
 
