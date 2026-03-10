@@ -42,7 +42,10 @@ class BaseShopView(discord.ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.owner_id:
-            await interaction.response.send_message("❌ Это меню доступно только тому, кто открыл магазин.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Это меню доступно только тому, кто открыл магазин.",
+                ephemeral=True,
+            )
             return False
         return True
 
@@ -72,7 +75,6 @@ class CatalogSelect(discord.ui.Select):
                 label=item.name[:100],
                 value=item.key,
                 description=f"{item.category} • {item.price} монет"[:100],
-                emoji=item.name.split(" ", 1)[0] if item.name and not item.name[0].isalnum() else None,
             )
             for item in cog.shop_service.get_all_items()[:25]
         ]
@@ -104,7 +106,105 @@ class CatalogView(BaseShopView):
         )
 
 
+class InventorySelect(discord.ui.Select):
+    def __init__(self, cog: "ShopCog", user_id: int):
+        self.cog = cog
+        inventory = cog.shop_service.get_inventory(user_id)
+        effects = cog.shop_service.list_effects(user_id)
+
+        options: list[discord.SelectOption] = []
+
+        current_theme = effects.get("profile_theme", {}).get("value")
+        current_frame = effects.get("profile_frame", {}).get("value")
+
+        for item_key, qty in inventory.items():
+            item = cog.shop_service.get_item(item_key)
+            if item is None:
+                continue
+
+            if item.key == "color_profile":
+                desc = "Деактивировать" if current_theme == "color_profile" else "Активировать"
+                options.append(
+                    discord.SelectOption(
+                        label=item.name[:100],
+                        value=item.key,
+                        description=desc[:100],
+                    )
+                )
+            elif item.key == "custom_bg":
+                desc = "Деактивировать" if current_theme == "custom_bg" else "Активировать"
+                options.append(
+                    discord.SelectOption(
+                        label=item.name[:100],
+                        value=item.key,
+                        description=desc[:100],
+                    )
+                )
+            elif item.key == "vip_frame":
+                desc = "Деактивировать" if current_frame == "vip_frame" else "Активировать"
+                options.append(
+                    discord.SelectOption(
+                        label=item.name[:100],
+                        value=item.key,
+                        description=desc[:100],
+                    )
+                )
+            elif item.key in {"double_win_token", "vip_slot_ticket"}:
+                desc = f"Использовать • осталось {qty}"
+                options.append(
+                    discord.SelectOption(
+                        label=item.name[:100],
+                        value=item.key,
+                        description=desc[:100],
+                    )
+                )
+
+        if not options:
+            options.append(
+                discord.SelectOption(
+                    label="Нет доступных действий",
+                    value="__empty__",
+                    description="Косметика или используемые предметы отсутствуют",
+                )
+            )
+
+        super().__init__(
+            placeholder="Выбери предмет для действия",
+            min_values=1,
+            max_values=1,
+            options=options[:25],
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        selected = self.values[0]
+        if selected == "__empty__":
+            await interaction.response.defer()
+            return
+
+        success, message = self.cog.shop_service.use_item(interaction.user.id, selected)
+
+        result_embed = discord.Embed(
+            title="🎒 Управление инвентарём",
+            description=message,
+            color=discord.Color.green() if success else discord.Color.red(),
+        )
+
+        await interaction.response.edit_message(
+            embed=self.cog.build_inventory_embed(interaction.user.id, notice_embed=result_embed),
+            view=InventoryView(self.cog, interaction.user.id),
+        )
+
+
 class InventoryView(BaseShopView):
+    def __init__(self, cog: "ShopCog", owner_id: int):
+        super().__init__(cog, owner_id)
+
+        inventory = cog.shop_service.get_inventory(owner_id)
+        actionable_keys = {"color_profile", "custom_bg", "vip_frame", "double_win_token", "vip_slot_ticket"}
+
+        if any(key in actionable_keys for key in inventory):
+            self.add_item(InventorySelect(cog, owner_id))
+
     @discord.ui.button(label="Обновить", style=discord.ButtonStyle.primary, emoji="🔄")
     async def refresh(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await interaction.response.edit_message(
@@ -255,17 +355,17 @@ class ShopCog(commands.Cog):
         embed = discord.Embed(
             title="🛒 Магазин сервера",
             description=(
-                "Добро пожаловать в магазин. \n\n"
+                "Добро пожаловать в магазин сервера.\n\n"
                 "**Разделы:**\n"
                 "🛍️ Каталог — весь ассортимент магазина\n"
                 "🎒 Инвентарь — купленные и активные предметы\n"
-                "🕶️ Чёрный рынок — 3 редких товара со скидкой 20%"
+                "🕶️ Чёрный рынок — 3 случайных товара со скидкой 20%"
             ),
             color=discord.Color.blurple(),
         )
         embed.add_field(name="Твой баланс", value=f"**{profile.balance}** 🪙", inline=True)
         embed.add_field(name="Обновление чёрного рынка", value="Каждые **24 часа**", inline=True)
-        embed.set_footer(text="Приятных покупок! Если нужна помощь, обратись к модераторам.")
+        embed.set_footer(text="Приятных покупок! Если возникнут вопросы, пиши в поддержку через репорт канал")
         return embed
 
     def build_catalog_embed(self, user_id: int) -> discord.Embed:
@@ -281,7 +381,7 @@ class ShopCog(commands.Cog):
         embed.set_footer(text="После выбора предмета появится отдельное подтверждение покупки")
         return embed
 
-    def build_inventory_embed(self, user_id: int) -> discord.Embed:
+    def build_inventory_embed(self, user_id: int, notice_embed: discord.Embed | None = None) -> discord.Embed:
         inventory = self.shop_service.get_inventory(user_id)
         effects = self.shop_service.list_effects(user_id)
         profile = self.profile_service.get_profile(user_id)
@@ -305,7 +405,6 @@ class ShopCog(commands.Cog):
             inline=False,
         )
 
-        active_lines: list[str] = []
         effect_names = {
             "vip_subscription": "💠 VIP подписка",
             "profile_theme": "🎨 Активный стиль профиля",
@@ -313,10 +412,20 @@ class ShopCog(commands.Cog):
             "double_win_armed": "🎲 Бустер x2",
             "vip_slot_armed": "🎰 VIP слот",
         }
+
+        value_names = {
+            "color_profile": "Цветной профиль",
+            "custom_bg": "Кастомный фон",
+            "vip_frame": "VIP рамка",
+        }
+
+        active_lines: list[str] = []
         for effect_key, effect_data in effects.items():
             label = effect_names.get(effect_key, effect_key)
-            value = str(effect_data.get("value", "активно"))
+            raw_value = effect_data.get("value")
+            value = value_names.get(str(raw_value), str(raw_value if raw_value is not None else "активно"))
             ttl = format_relative_duration(effect_data.get("expires_ts"))
+
             active_lines.append(
                 f"• {label}: **{value}** — пропадет через **{ttl}**"
                 if ttl != "навсегда"
@@ -328,6 +437,15 @@ class ShopCog(commands.Cog):
             value="\n".join(active_lines) if active_lines else "Сейчас нет активных предметов.",
             inline=False,
         )
+
+        if notice_embed is not None:
+            embed.add_field(
+                name="Последнее действие",
+                value=notice_embed.description or "Действие выполнено.",
+                inline=False,
+            )
+
+        embed.set_footer(text="В меню ниже можно активировать или деактивировать косметику")
         return embed
 
     def build_black_market_embed(self, user_id: int) -> discord.Embed:
@@ -336,8 +454,8 @@ class ShopCog(commands.Cog):
         embed = discord.Embed(
             title="🕶️ Чёрный рынок",
             description=(
-                f"Здесь каждый день появляются **3 случайных редких предложения**.\n"
-                f"Твой Баланс: **{profile.balance}** 🪙\n"
+                f"Здесь каждый день появляются **3 случайных предложения**.\n"
+                f"Баланс: **{profile.balance}** 🪙\n"
                 f"Скидка на все лоты: **20%**"
             ),
             color=discord.Color.dark_purple(),
@@ -382,11 +500,7 @@ class ShopCog(commands.Cog):
         embed.set_footer(text=f"Текущий баланс: {profile.balance} 🪙")
         return embed
 
-    def build_purchase_result_embed(
-        self,
-        message: str,
-        details: dict[str, Any],
-    ) -> discord.Embed:
+    def build_purchase_result_embed(self, message: str, details: dict[str, Any]) -> discord.Embed:
         embed = discord.Embed(title="✅ Покупка завершена", description=message, color=discord.Color.green())
         item = details.get("item")
         if item is not None:

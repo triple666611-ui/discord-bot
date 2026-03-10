@@ -276,6 +276,7 @@ class ShopService:
 
         new_balance = self.profile_service.add_balance(user_id, -price)
         self.repository.add_inventory_item(user_id, item.key, 1)
+
         details = {
             "balance": new_balance,
             "item": item,
@@ -388,15 +389,27 @@ class ShopService:
             return False, "❌ Этого предмета нет в инвентаре."
 
         if item_key == "color_profile":
-            self.repository.set_effect(user_id, "profile_theme", "Цветной профиль")
+            current = self.repository.get_effect(user_id, "profile_theme")
+            if current and current.get("value") == "color_profile":
+                self.repository.clear_effect(user_id, "profile_theme")
+                return True, "✅ Цветной профиль деактивирован."
+            self.repository.set_effect(user_id, "profile_theme", "color_profile")
             return True, "✅ Активирован стиль **Цветной профиль**."
 
         if item_key == "custom_bg":
-            self.repository.set_effect(user_id, "profile_theme", "Кастомный фон")
+            current = self.repository.get_effect(user_id, "profile_theme")
+            if current and current.get("value") == "custom_bg":
+                self.repository.clear_effect(user_id, "profile_theme")
+                return True, "✅ Кастомный фон деактивирован."
+            self.repository.set_effect(user_id, "profile_theme", "custom_bg")
             return True, "✅ Активирован стиль **Кастомный фон**."
 
         if item_key == "vip_frame":
-            self.repository.set_effect(user_id, "profile_frame", "VIP рамка")
+            current = self.repository.get_effect(user_id, "profile_frame")
+            if current and current.get("value") == "vip_frame":
+                self.repository.clear_effect(user_id, "profile_frame")
+                return True, "✅ VIP рамка деактивирована."
+            self.repository.set_effect(user_id, "profile_frame", "vip_frame")
             return True, "✅ Активирована **VIP рамка**."
 
         if item_key == "double_win_token":
