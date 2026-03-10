@@ -37,10 +37,40 @@ class ShopRepository:
                         effect_key TEXT NOT NULL,
                         value TEXT,
                         expires_ts BIGINT,
-                        updated_ts BIGINT NOT NULL,
+                        updated_ts BIGINT NOT NULL DEFAULT 0,
                         PRIMARY KEY (user_id, effect_key)
                     )
                     """
+                )
+
+                cur.execute(
+                    """
+                    ALTER TABLE shop_effects
+                    ADD COLUMN IF NOT EXISTS value TEXT
+                    """
+                )
+
+                cur.execute(
+                    """
+                    ALTER TABLE shop_effects
+                    ADD COLUMN IF NOT EXISTS expires_ts BIGINT
+                    """
+                )
+
+                cur.execute(
+                    """
+                    ALTER TABLE shop_effects
+                    ADD COLUMN IF NOT EXISTS updated_ts BIGINT NOT NULL DEFAULT 0
+                    """
+                )
+
+                cur.execute(
+                    """
+                    UPDATE shop_effects
+                    SET updated_ts = %s
+                    WHERE updated_ts = 0
+                    """,
+                    (int(time.time()),),
                 )
 
             conn.commit()
@@ -56,16 +86,20 @@ class ShopRepository:
                     SELECT item_key, quantity
                     FROM shop_inventory
                     WHERE user_id = %s AND quantity > 0
+                    ORDER BY item_key
                     """,
                     (user_id,),
                 )
                 rows = cur.fetchall()
 
-            return {row[0]: row[1] for row in rows}
+            return {str(row[0]): int(row[1]) for row in rows}
         finally:
             self._release(conn)
 
     def add_inventory_item(self, user_id: int, item_key: str, quantity: int = 1) -> None:
+        if quantity <= 0:
+            return
+
         conn = self._connect()
         try:
             with conn.cursor() as cur:
@@ -83,6 +117,9 @@ class ShopRepository:
             self._release(conn)
 
     def consume_inventory_item(self, user_id: int, item_key: str, quantity: int = 1) -> bool:
+        if quantity <= 0:
+            return False
+
         conn = self._connect()
         try:
             with conn.cursor() as cur:
@@ -96,10 +133,14 @@ class ShopRepository:
                 )
                 row = cur.fetchone()
 
-                if not row or row[0] < quantity:
+                if row is None:
                     return False
 
-                new_qty = row[0] - quantity
+                current_qty = int(row[0])
+                if current_qty < quantity:
+                    return False
+
+                new_qty = current_qty - quantity
 
                 if new_qty > 0:
                     cur.execute(
@@ -145,6 +186,7 @@ class ShopRepository:
                     SELECT effect_key, value, expires_ts, updated_ts
                     FROM shop_effects
                     WHERE user_id = %s
+                    ORDER BY effect_key
                     """,
                     (user_id,),
                 )
@@ -154,12 +196,11 @@ class ShopRepository:
 
             result: dict[str, dict[str, Any]] = {}
             for row in rows:
-                result[row[0]] = {
+                result[str(row[0])] = {
                     "value": row[1],
                     "expires_ts": row[2],
                     "updated_ts": row[3],
                 }
-
             return result
         finally:
             self._release(conn)
@@ -180,7 +221,7 @@ class ShopRepository:
                 )
                 row = cur.fetchone()
 
-                if not row:
+                if row is None:
                     return None
 
                 expires_ts = row[1]
@@ -203,8 +244,15 @@ class ShopRepository:
         finally:
             self._release(conn)
 
-    def set_effect(self, user_id: int, effect_key: str, value: str, expires_ts: int | None = None) -> None:
+    def set_effect(
+        self,
+        user_id: int,
+        effect_key: str,
+        value: str,
+        expires_ts: int | None = None,
+    ) -> None:
         conn = self._connect()
+        now_ts = int(time.time())
 
         try:
             with conn.cursor() as cur:
@@ -218,14 +266,19 @@ class ShopRepository:
                         expires_ts = EXCLUDED.expires_ts,
                         updated_ts = EXCLUDED.updated_ts
                     """,
-                    (user_id, effect_key, value, expires_ts, int(time.time())),
+                    (user_id, effect_key, value, expires_ts, now_ts),
                 )
-
             conn.commit()
         finally:
             self._release(conn)
 
-    def extend_effect(self, user_id: int, effect_key: str, value: str, duration_seconds: int) -> int:
+    def extend_effect(
+        self,
+        user_id: int,
+        effect_key: str,
+        value: str,
+        duration_seconds: int,
+    ) -> int:
         conn = self._connect()
         now_ts = int(time.time())
 
@@ -241,7 +294,7 @@ class ShopRepository:
                 )
                 row = cur.fetchone()
 
-                if not row or row[0] is None:
+                if row is None or row[0] is None:
                     new_expires_ts = now_ts + duration_seconds
                 else:
                     current_expires_ts = int(row[0])
@@ -268,7 +321,6 @@ class ShopRepository:
 
     def clear_effect(self, user_id: int, effect_key: str) -> None:
         conn = self._connect()
-
         try:
             with conn.cursor() as cur:
                 cur.execute(
@@ -278,7 +330,6 @@ class ShopRepository:
                     """,
                     (user_id, effect_key),
                 )
-
             conn.commit()
         finally:
             self._release(conn)
