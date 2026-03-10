@@ -65,9 +65,9 @@ class WelcomeConfig:
 
 
 class ShopConfig:
-    VIP_ROLE_ID = 0
-    ELITE_ROLE_ID = 0
-    LEGEND_ROLE_ID = 0
+    VIP_ROLE_ID = 1480822286415298661
+    ELITE_ROLE_ID = 1480824707316977776
+    LEGEND_ROLE_ID = 1480824802787856425
 
 
 class EconomyConfig:
