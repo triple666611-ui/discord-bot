@@ -255,7 +255,7 @@ class ShopCog(commands.Cog):
         embed = discord.Embed(
             title="🛒 Магазин сервера",
             description=(
-                "Добро пожаловать в магазин сервера. Все меню работают в embed-формате, а результат видишь только ты.\n\n"
+                "Добро пожаловать в магазин. \n\n"
                 "**Разделы:**\n"
                 "🛍️ Каталог — весь ассортимент магазина\n"
                 "🎒 Инвентарь — купленные и активные предметы\n"
@@ -265,7 +265,7 @@ class ShopCog(commands.Cog):
         )
         embed.add_field(name="Твой баланс", value=f"**{profile.balance}** 🪙", inline=True)
         embed.add_field(name="Обновление чёрного рынка", value="Каждые **24 часа**", inline=True)
-        embed.set_footer(text="Все действия магазина открываются только для тебя")
+        embed.set_footer(text="Приятных покупок! Если нужна помощь, обратись к модераторам.")
         return embed
 
     def build_catalog_embed(self, user_id: int) -> discord.Embed:
@@ -337,7 +337,7 @@ class ShopCog(commands.Cog):
             title="🕶️ Чёрный рынок",
             description=(
                 f"Здесь каждый день появляются **3 случайных редких предложения**.\n"
-                f"Баланс: **{profile.balance}** 🪙\n"
+                f"Твой Баланс: **{profile.balance}** 🪙\n"
                 f"Скидка на все лоты: **20%**"
             ),
             color=discord.Color.dark_purple(),

@@ -1,33 +1,25 @@
+from __future__ import annotations
+
+import os
 import time
-from contextlib import contextmanager
-from dataclasses import dataclass
 from typing import Any
 
-from psycopg2.pool import SimpleConnectionPool
-
-
-@dataclass(slots=True)
-class InventoryItem:
-    user_id: int
-    item_key: str
-    quantity: int
+import psycopg2
+import psycopg2.extras
 
 
 class ShopRepository:
-    def __init__(self, pool: SimpleConnectionPool):
-        self.pool = pool
+    def __init__(self, database_url: str | None = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL")
+        if not self.database_url:
+            raise ValueError("DATABASE_URL не найден. Укажи URL PostgreSQL в переменных окружения.")
         self._setup_db()
 
-    @contextmanager
-    def _get_conn(self):
-        conn = self.pool.getconn()
-        try:
-            yield conn
-        finally:
-            self.pool.putconn(conn)
+    def _connect(self):
+        return psycopg2.connect(self.database_url)
 
     def _setup_db(self) -> None:
-        with self._get_conn() as conn:
+        with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -39,27 +31,42 @@ class ShopRepository:
                     )
                     """
                 )
+
                 cur.execute(
                     """
                     CREATE TABLE IF NOT EXISTS shop_effects (
                         user_id BIGINT NOT NULL,
                         effect_key TEXT NOT NULL,
-                        effect_value TEXT NOT NULL,
+                        value TEXT,
                         expires_ts BIGINT,
+                        updated_ts BIGINT NOT NULL,
                         PRIMARY KEY (user_id, effect_key)
                     )
                     """
                 )
+            conn.commit()
+
+    def get_inventory(self, user_id: int) -> dict[str, int]:
+        with self._connect() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
-                    CREATE INDEX IF NOT EXISTS idx_shop_effects_expires
-                    ON shop_effects (expires_ts)
-                    """
+                    SELECT item_key, quantity
+                    FROM shop_inventory
+                    WHERE user_id = %s AND quantity > 0
+                    ORDER BY item_key
+                    """,
+                    (user_id,),
                 )
-                conn.commit()
+                rows = cur.fetchall()
+
+        return {str(row["item_key"]): int(row["quantity"]) for row in rows}
 
     def add_inventory_item(self, user_id: int, item_key: str, quantity: int = 1) -> None:
-        with self._get_conn() as conn:
+        if quantity <= 0:
+            return
+
+        with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -70,64 +77,41 @@ class ShopRepository:
                     """,
                     (user_id, item_key, quantity),
                 )
-                conn.commit()
-
-    def get_inventory(self, user_id: int) -> dict[str, int]:
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT item_key, quantity
-                    FROM shop_inventory
-                    WHERE user_id = %s AND quantity > 0
-                    ORDER BY item_key ASC
-                    """,
-                    (user_id,),
-                )
-                rows = cur.fetchall()
-        return {str(row[0]): int(row[1]) for row in rows}
-
-    def get_item_quantity(self, user_id: int, item_key: str) -> int:
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT quantity
-                    FROM shop_inventory
-                    WHERE user_id = %s AND item_key = %s
-                    """,
-                    (user_id, item_key),
-                )
-                row = cur.fetchone()
-        return int(row[0]) if row else 0
+            conn.commit()
 
     def consume_inventory_item(self, user_id: int, item_key: str, quantity: int = 1) -> bool:
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
+        if quantity <= 0:
+            return False
+
+        with self._connect() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
                     SELECT quantity
                     FROM shop_inventory
                     WHERE user_id = %s AND item_key = %s
-                    FOR UPDATE
                     """,
                     (user_id, item_key),
                 )
                 row = cur.fetchone()
-                current = int(row[0]) if row else 0
-                if current < quantity:
-                    conn.rollback()
+
+                if row is None:
                     return False
 
-                new_quantity = current - quantity
-                if new_quantity > 0:
+                current_qty = int(row["quantity"])
+                if current_qty < quantity:
+                    return False
+
+                new_qty = current_qty - quantity
+
+                if new_qty > 0:
                     cur.execute(
                         """
                         UPDATE shop_inventory
                         SET quantity = %s
                         WHERE user_id = %s AND item_key = %s
                         """,
-                        (new_quantity, user_id, item_key),
+                        (new_qty, user_id, item_key),
                     )
                 else:
                     cur.execute(
@@ -137,74 +121,67 @@ class ShopRepository:
                         """,
                         (user_id, item_key),
                     )
-                conn.commit()
-                return True
 
-    def set_effect(self, user_id: int, effect_key: str, effect_value: str, expires_ts: int | None = None) -> None:
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
+            conn.commit()
+            return True
+
+    def list_effects(self, user_id: int) -> dict[str, dict[str, Any]]:
+        now_ts = int(time.time())
+
+        with self._connect() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
-                    INSERT INTO shop_effects (user_id, effect_key, effect_value, expires_ts)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (user_id, effect_key)
-                    DO UPDATE SET
-                        effect_value = EXCLUDED.effect_value,
-                        expires_ts = EXCLUDED.expires_ts
+                    DELETE FROM shop_effects
+                    WHERE user_id = %s
+                      AND expires_ts IS NOT NULL
+                      AND expires_ts <= %s
                     """,
-                    (user_id, effect_key, effect_value, expires_ts),
+                    (user_id, now_ts),
                 )
-                conn.commit()
 
-    def extend_effect(self, user_id: int, effect_key: str, effect_value: str, extend_seconds: int) -> int:
-        now = int(time.time())
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT expires_ts
+                    SELECT effect_key, value, expires_ts, updated_ts
                     FROM shop_effects
-                    WHERE user_id = %s AND effect_key = %s
-                    FOR UPDATE
+                    WHERE user_id = %s
+                    ORDER BY effect_key
                     """,
-                    (user_id, effect_key),
+                    (user_id,),
                 )
-                row = cur.fetchone()
-                current_expires = int(row[0]) if row and row[0] is not None else None
-                base_ts = max(now, current_expires or now)
-                new_expires = base_ts + extend_seconds
-                cur.execute(
-                    """
-                    INSERT INTO shop_effects (user_id, effect_key, effect_value, expires_ts)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (user_id, effect_key)
-                    DO UPDATE SET
-                        effect_value = EXCLUDED.effect_value,
-                        expires_ts = EXCLUDED.expires_ts
-                    """,
-                    (user_id, effect_key, effect_value, new_expires),
-                )
-                conn.commit()
-                return new_expires
+                rows = cur.fetchall()
+
+            conn.commit()
+
+        result: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            result[str(row["effect_key"])] = {
+                "value": row["value"],
+                "expires_ts": row["expires_ts"],
+                "updated_ts": row["updated_ts"],
+            }
+        return result
 
     def get_effect(self, user_id: int, effect_key: str) -> dict[str, Any] | None:
-        now = int(time.time())
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
+        now_ts = int(time.time())
+
+        with self._connect() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
-                    SELECT effect_value, expires_ts
+                    SELECT effect_key, value, expires_ts, updated_ts
                     FROM shop_effects
                     WHERE user_id = %s AND effect_key = %s
                     """,
                     (user_id, effect_key),
                 )
                 row = cur.fetchone()
+
                 if row is None:
                     return None
-                effect_value = str(row[0])
-                expires_ts = int(row[1]) if row[1] is not None else None
-                if expires_ts is not None and expires_ts <= now:
+
+                expires_ts = row["expires_ts"]
+                if expires_ts is not None and int(expires_ts) <= now_ts:
                     cur.execute(
                         """
                         DELETE FROM shop_effects
@@ -214,13 +191,61 @@ class ShopRepository:
                     )
                     conn.commit()
                     return None
-        return {
-            "value": effect_value,
-            "expires_ts": expires_ts,
-        }
+
+                return {
+                    "effect_key": row["effect_key"],
+                    "value": row["value"],
+                    "expires_ts": row["expires_ts"],
+                    "updated_ts": row["updated_ts"],
+                }
+
+    def set_effect(
+        self,
+        user_id: int,
+        effect_key: str,
+        value: str,
+        expires_ts: int | None = None,
+    ) -> None:
+        now_ts = int(time.time())
+
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO shop_effects (user_id, effect_key, value, expires_ts, updated_ts)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (user_id, effect_key)
+                    DO UPDATE SET
+                        value = EXCLUDED.value,
+                        expires_ts = EXCLUDED.expires_ts,
+                        updated_ts = EXCLUDED.updated_ts
+                    """,
+                    (user_id, effect_key, value, expires_ts, now_ts),
+                )
+            conn.commit()
+
+    def extend_effect(
+        self,
+        user_id: int,
+        effect_key: str,
+        value: str,
+        duration_seconds: int,
+    ) -> int:
+        now_ts = int(time.time())
+        current = self.get_effect(user_id, effect_key)
+
+        if current is None or current.get("expires_ts") is None:
+            new_expires_ts = now_ts + duration_seconds
+        else:
+            current_expires_ts = int(current["expires_ts"])
+            base_ts = max(now_ts, current_expires_ts)
+            new_expires_ts = base_ts + duration_seconds
+
+        self.set_effect(user_id, effect_key, value, new_expires_ts)
+        return new_expires_ts
 
     def clear_effect(self, user_id: int, effect_key: str) -> None:
-        with self._get_conn() as conn:
+        with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -229,42 +254,4 @@ class ShopRepository:
                     """,
                     (user_id, effect_key),
                 )
-                conn.commit()
-
-    def list_effects(self, user_id: int) -> dict[str, dict[str, Any]]:
-        now = int(time.time())
-        effects: dict[str, dict[str, Any]] = {}
-        expired: list[str] = []
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT effect_key, effect_value, expires_ts
-                    FROM shop_effects
-                    WHERE user_id = %s
-                    ORDER BY effect_key ASC
-                    """,
-                    (user_id,),
-                )
-                rows = cur.fetchall()
-                for row in rows:
-                    effect_key = str(row[0])
-                    effect_value = str(row[1])
-                    expires_ts = int(row[2]) if row[2] is not None else None
-                    if expires_ts is not None and expires_ts <= now:
-                        expired.append(effect_key)
-                        continue
-                    effects[effect_key] = {
-                        "value": effect_value,
-                        "expires_ts": expires_ts,
-                    }
-                if expired:
-                    cur.execute(
-                        """
-                        DELETE FROM shop_effects
-                        WHERE user_id = %s AND effect_key = ANY(%s)
-                        """,
-                        (user_id, expired),
-                    )
-                    conn.commit()
-        return effects
+            conn.commit()
