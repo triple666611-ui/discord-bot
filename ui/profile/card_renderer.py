@@ -1,12 +1,12 @@
 import io
-import aiohttp
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+import aiohttp
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 
 WIDTH = 1400
 HEIGHT = 500
-
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 FONT_PATH = BASE_DIR / "assets" / "fonts" / "Inter-Bold.otf"
@@ -17,7 +17,6 @@ def load_font(size: int):
     for path in (FONT_PATH, WINDOWS_FALLBACK_FONT):
         if path.exists():
             return ImageFont.truetype(str(path), size)
-
     return ImageFont.load_default()
 
 
@@ -40,7 +39,6 @@ def circle_crop(img):
 
     out = Image.new("RGBA", (size, size))
     out.paste(img, (0, 0), mask)
-
     return out
 
 
@@ -158,12 +156,7 @@ async def render_profile_card(member, profile):
     draw = ImageDraw.Draw(base)
 
     draw.text((380, 140), username, font=name_font, fill=(240, 245, 255))
-    draw.text(
-        (380, 205),
-        f"ID: {user_id}",
-        font=small_font,
-        fill=(140, 150, 200),
-    )
+    draw.text((380, 205), f"ID: {user_id}", font=small_font, fill=(140, 150, 200))
 
     def stat_box(x, label, value):
         box_fill = (20, 30, 60)
@@ -218,7 +211,6 @@ async def render_profile_card(member, profile):
     )
 
     fill = int(bar_w * progress)
-
     if fill > 0:
         draw.rounded_rectangle(
             (bar_x, bar_y, bar_x + fill, bar_y + bar_h),
@@ -226,13 +218,7 @@ async def render_profile_card(member, profile):
             fill=bar_fill,
         )
 
-    draw.text(
-        (bar_x - 60, bar_y - 4),
-        "XP",
-        font=small_font,
-        fill=xp_text_color,
-    )
-
+    draw.text((bar_x - 60, bar_y - 4), "XP", font=small_font, fill=xp_text_color)
     draw.text(
         (bar_x + bar_w + 20, bar_y - 4),
         f"{xp}/{xp_needed} XP",
@@ -261,5 +247,4 @@ async def render_profile_card(member, profile):
     buffer = io.BytesIO()
     base.save(buffer, "PNG")
     buffer.seek(0)
-
     return buffer
