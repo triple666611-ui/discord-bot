@@ -21,6 +21,18 @@ class ShopCog(commands.Cog):
             return "бессрочно"
         return dt.datetime.fromtimestamp(ts).strftime("%d.%m.%Y %H:%M")
 
+    def _make_embed(
+        self,
+        title: str,
+        description: str,
+        color: discord.Color,
+    ) -> discord.Embed:
+        return discord.Embed(
+            title=title,
+            description=description,
+            color=color,
+        )
+
     def _build_catalog_embed(self, user_id: int) -> discord.Embed:
         profile = self.profile_service.get_profile(user_id)
         embed = discord.Embed(
@@ -94,6 +106,7 @@ class ShopCog(commands.Cog):
     def _build_black_market_embed(self, user_id: int) -> discord.Embed:
         item = self.shop_service.get_black_market_offer()
         profile = self.profile_service.get_profile(user_id)
+
         embed = discord.Embed(
             title="⚫ Чёрный рынок",
             description=(
@@ -150,29 +163,60 @@ class ShopCog(commands.Cog):
         item: app_commands.Choice[str] | None = None,
     ) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._make_embed(
+                    "❌ Ошибка",
+                    "Команда доступна только на сервере.",
+                    discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
             return
 
         if action.value == "browse":
-            await interaction.response.send_message(embed=self._build_catalog_embed(interaction.user.id), ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._build_catalog_embed(interaction.user.id),
+                ephemeral=True,
+            )
             return
 
         if action.value == "inventory":
-            await interaction.response.send_message(embed=self._build_inventory_embed(interaction.user.id), ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._build_inventory_embed(interaction.user.id),
+                ephemeral=True,
+            )
             return
 
         if action.value == "blackmarket":
-            await interaction.response.send_message(embed=self._build_black_market_embed(interaction.user.id), ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._build_black_market_embed(interaction.user.id),
+                ephemeral=True,
+            )
             return
 
         if item is None:
-            await interaction.response.send_message("❌ Для этого действия нужно выбрать предмет.", ephemeral=True)
+            await interaction.response.send_message(
+                embed=self._make_embed(
+                    "❌ Ошибка",
+                    "Для этого действия нужно выбрать предмет.",
+                    discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
             return
 
         if action.value == "buy":
             success, message, details = self.shop_service.buy_item(interaction.user.id, item.value)
+
             if not success:
-                await interaction.response.send_message(message, ephemeral=True)
+                await interaction.response.send_message(
+                    embed=self._make_embed(
+                        "❌ Покупка не выполнена",
+                        message,
+                        discord.Color.red(),
+                    ),
+                    ephemeral=True,
+                )
                 return
 
             embed = discord.Embed(
@@ -180,6 +224,7 @@ class ShopCog(commands.Cog):
                 description=message,
                 color=discord.Color.green(),
             )
+
             purchased_item = details.get("item")
             if purchased_item is not None:
                 embed.add_field(name="Предмет", value=purchased_item.name, inline=False)
@@ -200,9 +245,17 @@ class ShopCog(commands.Cog):
                             await member.add_roles(role, reason="Покупка роли в /shop")
                             embed.add_field(name="Роль", value=f"Выдана роль {role.mention}", inline=False)
                         except discord.Forbidden:
-                            embed.add_field(name="Роль", value="Нет прав для выдачи роли. Проверь позицию роли бота.", inline=False)
+                            embed.add_field(
+                                name="Роль",
+                                value="Нет прав для выдачи роли. Проверь позицию роли бота.",
+                                inline=False,
+                            )
                         except discord.HTTPException:
-                            embed.add_field(name="Роль", value="Не удалось выдать роль из-за ошибки Discord API.", inline=False)
+                            embed.add_field(
+                                name="Роль",
+                                value="Не удалось выдать роль из-за ошибки Discord API.",
+                                inline=False,
+                            )
 
             expires_ts = details.get("expires_ts")
             if expires_ts:
@@ -219,8 +272,13 @@ class ShopCog(commands.Cog):
         if action.value == "use":
             success, message = self.shop_service.use_item(interaction.user.id, item.value)
             color = discord.Color.green() if success else discord.Color.red()
+
             await interaction.response.send_message(
-                embed=discord.Embed(title="⚙ Использование предмета", description=message, color=color),
+                embed=discord.Embed(
+                    title="⚙ Использование предмета",
+                    description=message,
+                    color=color,
+                ),
                 ephemeral=True,
             )
             return
@@ -228,13 +286,25 @@ class ShopCog(commands.Cog):
         if action.value == "deactivate":
             success, message = self.shop_service.deactivate_item(interaction.user.id, item.value)
             color = discord.Color.green() if success else discord.Color.red()
+
             await interaction.response.send_message(
-                embed=discord.Embed(title="📴 Деактивация предмета", description=message, color=color),
+                embed=discord.Embed(
+                    title="📴 Деактивация предмета",
+                    description=message,
+                    color=color,
+                ),
                 ephemeral=True,
             )
             return
 
-        await interaction.response.send_message("❌ Неизвестное действие магазина.", ephemeral=True)
+        await interaction.response.send_message(
+            embed=self._make_embed(
+                "❌ Ошибка",
+                "Неизвестное действие магазина.",
+                discord.Color.red(),
+            ),
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:
