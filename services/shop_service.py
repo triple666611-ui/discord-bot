@@ -10,7 +10,6 @@ from repositories.shop_repository import ShopRepository
 from services.profile_service import ProfileService
 
 DAY_SECONDS = 24 * 60 * 60
-BLACK_MARKET_DISCOUNT = 0.20
 
 
 @dataclass(slots=True)
@@ -21,13 +20,6 @@ class ShopItem:
     category: str
     description: str
     kind: str
-
-
-@dataclass(slots=True)
-class BlackMarketOffer:
-    item: ShopItem
-    original_price: int
-    discounted_price: int
 
 
 class ShopService:
@@ -149,38 +141,40 @@ class ShopService:
             values.sort(key=lambda item: item.price)
         return dict(sorted(groups.items(), key=lambda pair: pair[0]))
 
-    def get_all_items(self) -> list[ShopItem]:
-        return sorted(self._items.values(), key=lambda item: (item.category, item.price, item.name))
-
     def get_item(self, item_key: str) -> ShopItem | None:
+        if item_key == "black_market_offer":
+            return self.get_black_market_offer()
         return self._items.get(item_key)
 
-    def get_black_market_offers(self) -> list[BlackMarketOffer]:
+    def get_black_market_offer(self) -> ShopItem:
+        offer_pool = (
+            ShopItem(
+                key="bm_shadow_frame",
+                name="🕶 Теневая рамка",
+                price=2200,
+                category="Чёрный рынок",
+                description="Редкая тёмная рамка профиля только на сегодня.",
+                kind="cosmetic",
+            ),
+            ShopItem(
+                key="bm_lucky_case",
+                name="🎲 Контрабандный кейс",
+                price=850,
+                category="Чёрный рынок",
+                description="Редкий кейс с повышенным шансом на косметику.",
+                kind="case",
+            ),
+            ShopItem(
+                key="bm_double_bundle",
+                name="⚡ Пачка x2 бустеров",
+                price=700,
+                category="Чёрный рынок",
+                description="Сразу 2 жетона удвоенного выигрыша.",
+                kind="inventory",
+            ),
+        )
         day_index = int(time.time() // DAY_SECONDS)
-        seed = f"black-market-{day_index}"
-        rng = random.Random(seed)
-        pool = self.get_all_items()
-        sample_size = min(3, len(pool))
-        sampled = rng.sample(pool, k=sample_size)
-        sampled.sort(key=lambda offer_item: offer_item.price, reverse=True)
-
-        offers: list[BlackMarketOffer] = []
-        for item in sampled:
-            discounted = max(1, int(round(item.price * (1 - BLACK_MARKET_DISCOUNT))))
-            offers.append(
-                BlackMarketOffer(
-                    item=item,
-                    original_price=item.price,
-                    discounted_price=discounted,
-                )
-            )
-        return offers
-
-    def get_black_market_offer(self, item_key: str) -> BlackMarketOffer | None:
-        for offer in self.get_black_market_offers():
-            if offer.item.key == item_key:
-                return offer
-        return None
+        return offer_pool[day_index % len(offer_pool)]
 
     def get_inventory(self, user_id: int) -> dict[str, int]:
         return self.repository.get_inventory(user_id)
@@ -193,6 +187,26 @@ class ShopService:
         return {
             "theme": effects.get("profile_theme", {}).get("value"),
             "frame": effects.get("profile_frame", {}).get("value"),
+        }
+
+    def get_active_cosmetics(self, user_id: int) -> dict[str, str | None]:
+        style = self.get_profile_style(user_id)
+        active_theme = None
+        active_frame = None
+
+        if style.get("theme") == "color":
+            active_theme = "color_profile"
+        elif style.get("theme") == "custom_bg":
+            active_theme = "custom_bg"
+
+        if style.get("frame") == "vip":
+            active_frame = "vip_frame"
+        elif style.get("frame") == "shadow":
+            active_frame = "bm_shadow_frame"
+
+        return {
+            "theme": active_theme,
+            "frame": active_frame,
         }
 
     def has_vip(self, user_id: int) -> bool:
@@ -234,58 +248,43 @@ class ShopService:
         self.repository.clear_effect(user_id, "vip_slot_armed")
         return True
 
-    def buy_item(self, user_id: int, item_key: str, *, price_override: int | None = None) -> tuple[bool, str, dict[str, Any]]:
+    def buy_item(self, user_id: int, item_key: str) -> tuple[bool, str, dict[str, Any]]:
         payload: dict[str, Any] = {}
         item = self.get_item(item_key)
         if item is None:
             return False, "❌ Такой предмет не найден.", payload
 
-        final_price = item.price if price_override is None else price_override
         profile = self.profile_service.get_profile(user_id)
-        if profile.balance < final_price:
-            return False, f"❌ Недостаточно монет. Нужно **{final_price}** 🪙, у тебя **{profile.balance}** 🪙.", payload
+        if profile.balance < item.price:
+            return False, f"❌ Недостаточно монет. Нужно **{item.price}** 🪙, у тебя **{profile.balance}** 🪙.", payload
 
         if item.kind == "cosmetic":
-            return self._buy_cosmetic(user_id, item, final_price)
+            return self._buy_cosmetic(user_id, item)
         if item.kind == "inventory":
-            return self._buy_inventory(user_id, item, final_price)
+            return self._buy_inventory(user_id, item)
         if item.kind == "case":
-            return self._open_case(user_id, item, final_price)
+            return self._open_case(user_id, item)
         if item.kind == "subscription":
-            return self._buy_subscription(user_id, item, final_price)
+            return self._buy_subscription(user_id, item)
         if item.kind == "role":
-            return self._buy_role(user_id, item, final_price)
+            return self._buy_role(user_id, item)
         return False, "❌ Этот предмет пока недоступен.", payload
 
-    def buy_black_market_item(self, user_id: int, item_key: str) -> tuple[bool, str, dict[str, Any]]:
-        offer = self.get_black_market_offer(item_key)
-        if offer is None:
-            return False, "❌ Этого предмета сейчас нет на чёрном рынке.", {}
-
-        success, message, details = self.buy_item(user_id, item_key, price_override=offer.discounted_price)
-        if success:
-            details["original_price"] = offer.original_price
-            details["discounted_price"] = offer.discounted_price
-            details["discount_percent"] = int(BLACK_MARKET_DISCOUNT * 100)
-        return success, message, details
-
-    def _buy_cosmetic(self, user_id: int, item: ShopItem, price: int) -> tuple[bool, str, dict[str, Any]]:
+    def _buy_cosmetic(self, user_id: int, item: ShopItem) -> tuple[bool, str, dict[str, Any]]:
         inventory = self.repository.get_inventory(user_id)
         if inventory.get(item.key, 0) > 0:
             return False, "❌ У тебя уже есть этот косметический предмет.", {}
 
-        new_balance = self.profile_service.add_balance(user_id, -price)
+        new_balance = self.profile_service.add_balance(user_id, -item.price)
         self.repository.add_inventory_item(user_id, item.key, 1)
-
         details = {
             "balance": new_balance,
             "item": item,
-            "paid_price": price,
         }
         return True, f"✅ Куплено: **{item.name}**. Баланс: **{new_balance}** 🪙.", details
 
-    def _buy_inventory(self, user_id: int, item: ShopItem, price: int) -> tuple[bool, str, dict[str, Any]]:
-        new_balance = self.profile_service.add_balance(user_id, -price)
+    def _buy_inventory(self, user_id: int, item: ShopItem) -> tuple[bool, str, dict[str, Any]]:
+        new_balance = self.profile_service.add_balance(user_id, -item.price)
         qty = 2 if item.key == "bm_double_bundle" else 1
         inventory_key = "double_win_token" if item.key == "bm_double_bundle" else item.key
         self.repository.add_inventory_item(user_id, inventory_key, qty)
@@ -294,16 +293,11 @@ class ShopService:
             "item": item,
             "quantity": qty,
             "inventory_key": inventory_key,
-            "paid_price": price,
         }
         qty_text = f" x{qty}" if qty > 1 else ""
         return True, f"✅ Куплено: **{item.name}{qty_text}**. Баланс: **{new_balance}** 🪙.", details
 
-    def _buy_role(self, user_id: int, item: ShopItem, price: int) -> tuple[bool, str, dict[str, Any]]:
-        inventory = self.repository.get_inventory(user_id)
-        if inventory.get(item.key, 0) > 0:
-            return False, "❌ Эта роль уже куплена для твоего аккаунта.", {}
-
+    def _buy_role(self, user_id: int, item: ShopItem) -> tuple[bool, str, dict[str, Any]]:
         role_key_map = {
             "role_vip": Config.SHOP.VIP_ROLE_ID,
             "role_elite": Config.SHOP.ELITE_ROLE_ID,
@@ -313,33 +307,30 @@ class ShopService:
         if not role_id:
             return False, f"❌ Для **{item.name}** ещё не указан role ID в config.py.", {}
 
-        new_balance = self.profile_service.add_balance(user_id, -price)
-        self.repository.add_inventory_item(user_id, item.key, 1)
+        new_balance = self.profile_service.add_balance(user_id, -item.price)
         return True, f"✅ Покупка роли **{item.name}** оформлена. Баланс: **{new_balance}** 🪙.", {
             "balance": new_balance,
             "item": item,
             "role_id": role_id,
-            "paid_price": price,
         }
 
-    def _buy_subscription(self, user_id: int, item: ShopItem, price: int) -> tuple[bool, str, dict[str, Any]]:
-        new_balance = self.profile_service.add_balance(user_id, -price)
+    def _buy_subscription(self, user_id: int, item: ShopItem) -> tuple[bool, str, dict[str, Any]]:
+        new_balance = self.profile_service.add_balance(user_id, -item.price)
         extend_days = 7 if item.key == "vip_7d" else 30
         expires_ts = self.repository.extend_effect(
             user_id,
             "vip_subscription",
-            item.name,
+            "active",
             extend_days * DAY_SECONDS,
         )
         return True, f"✅ Активирован **{item.name}**. Баланс: **{new_balance}** 🪙.", {
             "balance": new_balance,
             "item": item,
             "expires_ts": expires_ts,
-            "paid_price": price,
         }
 
-    def _open_case(self, user_id: int, item: ShopItem, price: int) -> tuple[bool, str, dict[str, Any]]:
-        new_balance = self.profile_service.add_balance(user_id, -price)
+    def _open_case(self, user_id: int, item: ShopItem) -> tuple[bool, str, dict[str, Any]]:
+        new_balance = self.profile_service.add_balance(user_id, -item.price)
 
         rewards_small = (
             ("coins", 120),
@@ -357,16 +348,24 @@ class ShopService:
             ("item", "color_profile"),
             ("item", "vip_frame"),
         )
+        rewards_black = (
+            ("coins", 500),
+            ("coins", 1200),
+            ("item", "double_win_token"),
+            ("item", "custom_bg"),
+            ("item", "vip_frame"),
+        )
 
         if item.key == "small_case":
             reward = random.choice(rewards_small)
-        else:
+        elif item.key == "big_case":
             reward = random.choice(rewards_big)
+        else:
+            reward = random.choice(rewards_black)
 
         details: dict[str, Any] = {
             "balance": new_balance,
             "item": item,
-            "paid_price": price,
         }
 
         if reward[0] == "coins":
@@ -389,45 +388,57 @@ class ShopService:
             return False, "❌ Этого предмета нет в инвентаре."
 
         if item_key == "color_profile":
-            current = self.repository.get_effect(user_id, "profile_theme")
-            if current and current.get("value") == "color_profile":
-                self.repository.clear_effect(user_id, "profile_theme")
-                return True, "✅ Цветной профиль деактивирован."
-            self.repository.set_effect(user_id, "profile_theme", "color_profile")
-            return True, "✅ Активирован стиль **Цветной профиль**."
+            self.repository.set_effect(user_id, "profile_theme", "color")
+            return True, "✅ Активирован стиль **Цветной профиль**. Изменения уже видны в `/profile`."
 
         if item_key == "custom_bg":
-            current = self.repository.get_effect(user_id, "profile_theme")
-            if current and current.get("value") == "custom_bg":
-                self.repository.clear_effect(user_id, "profile_theme")
-                return True, "✅ Кастомный фон деактивирован."
             self.repository.set_effect(user_id, "profile_theme", "custom_bg")
-            return True, "✅ Активирован стиль **Кастомный фон**."
+            return True, "✅ Активирован стиль **Кастомный фон**. Изменения уже видны в `/profile`."
 
         if item_key == "vip_frame":
-            current = self.repository.get_effect(user_id, "profile_frame")
-            if current and current.get("value") == "vip_frame":
-                self.repository.clear_effect(user_id, "profile_frame")
-                return True, "✅ VIP рамка деактивирована."
-            self.repository.set_effect(user_id, "profile_frame", "vip_frame")
-            return True, "✅ Активирована **VIP рамка**."
+            self.repository.set_effect(user_id, "profile_frame", "vip")
+            return True, "✅ Активирована **VIP рамка**. Изменения уже видны в `/profile`."
+
+        if item_key == "bm_shadow_frame":
+            self.repository.set_effect(user_id, "profile_frame", "shadow")
+            return True, "✅ Активирована **Теневая рамка**. Изменения уже видны в `/profile`."
 
         if item_key == "double_win_token":
             if not self.repository.consume_inventory_item(user_id, item_key, 1):
                 return False, "❌ Не удалось активировать бустер x2."
-            self.repository.set_effect(user_id, "double_win_armed", "Следующая победа x2")
+            self.repository.set_effect(user_id, "double_win_armed", "active")
             return True, "✅ Следующая победа в игре будет умножена на x2."
 
         if item_key == "vip_slot_ticket":
             if not self.repository.consume_inventory_item(user_id, item_key, 1):
                 return False, "❌ Не удалось активировать VIP слот."
-            self.repository.set_effect(user_id, "vip_slot_armed", "VIP слот готов")
+            self.repository.set_effect(user_id, "vip_slot_armed", "active")
             return True, "✅ Следующий /slots гарантирует минимум двойное совпадение."
 
         if item_key == "tournament_ticket":
             return True, "🎟 Турнирный билет сохранён. Его можно будет использовать, когда появятся турниры."
 
-        if item_key in {"role_vip", "role_elite", "role_legend"}:
-            return False, "❌ Роль активируется сразу после покупки и не используется вручную."
-
         return False, "❌ Этот предмет нельзя использовать вручную."
+
+    def deactivate_item(self, user_id: int, item_key: str) -> tuple[bool, str]:
+        inventory = self.repository.get_inventory(user_id)
+        if inventory.get(item_key, 0) <= 0:
+            return False, "❌ Этого предмета нет в инвентаре."
+
+        if item_key in {"color_profile", "custom_bg"}:
+            current_theme = self.get_profile_style(user_id).get("theme")
+            expected_theme = "color" if item_key == "color_profile" else "custom_bg"
+            if current_theme != expected_theme:
+                return False, "❌ Этот стиль сейчас не активирован."
+            self.repository.clear_effect(user_id, "profile_theme")
+            return True, "✅ Фоновая кастомизация профиля отключена."
+
+        if item_key in {"vip_frame", "bm_shadow_frame"}:
+            current_frame = self.get_profile_style(user_id).get("frame")
+            expected_frame = "vip" if item_key == "vip_frame" else "shadow"
+            if current_frame != expected_frame:
+                return False, "❌ Эта рамка сейчас не активирована."
+            self.repository.clear_effect(user_id, "profile_frame")
+            return True, "✅ Рамка профиля отключена."
+
+        return False, "❌ Этот предмет нельзя деактивировать через магазин."
