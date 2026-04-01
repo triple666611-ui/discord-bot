@@ -1,4 +1,4 @@
-﻿import random
+import random
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -9,7 +9,7 @@ from discord.ext import commands
 from config import Config
 
 BLACKJACK_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
-BLACKJACK_SUITS = ["в™ ", "в™Ґ", "в™¦", "в™Ј"]
+BLACKJACK_SUITS = ["♠", "♥", "♦", "♣"]
 BLACKJACK_TIMEOUT_SEC = 120
 
 
@@ -137,7 +137,7 @@ class BlackJackView(discord.ui.View):
             "Хватит — зафиксировать текущую руку.",
         ]
         if self._can_double_hand(hand):
-            lines.append("Удвоить — удвоить ставку, взять 1 карту и остановиться.")
+            lines.append("Удвоить — удвоить ставку, взять одну карту и сразу остановиться.")
         if self._can_split_hand(hand):
             lines.append("Разделить — разбить пару на две независимые руки.")
         return self._build_embed(
@@ -375,7 +375,6 @@ class BlackJackView(discord.ui.View):
         self._refresh_button_states()
         await interaction.response.edit_message(embed=self.build_live_embed(), view=self)
 
-
 class Games(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -391,57 +390,57 @@ class Games(commands.Cog):
 
     def build_games_help_embed(self) -> discord.Embed:
         embed = discord.Embed(
-            title="рџЋ® РРіСЂРѕРІС‹Рµ РєРѕРјР°РЅРґС‹ СЃРµСЂРІРµСЂР°",
-            description="РџСЂР°РІРёР»Р° РёРіСЂ, РєР°РЅР°Р»С‹ РґР»СЏ РёРіСЂС‹ Рё Р±Р°Р·РѕРІС‹Рµ РЅР°РіСЂР°РґС‹.",
+            title="🎮 Игровые команды сервера",
+            description="Правила игр, каналы для игры и базовые награды.",
             color=discord.Color.blurple(),
         )
         embed.add_field(
-            name="рџЄ™ /coin вЂ” РњРѕРЅРµС‚РєР°",
+            name="🪙 /coin — Монетка",
             value=(
-                f"РљР°РЅР°Р»: <#{Config.COIN_CHANNEL_ID}>\n"
-                "Р’С‹Р±РёСЂР°РµС€СЊ **РѕСЂС‘Р»** РёР»Рё **СЂРµС€РєР°** Рё СѓРєР°Р·С‹РІР°РµС€СЊ СЃС‚Р°РІРєСѓ.\n"
-                "РЈРіР°РґР°Р» вЂ” **+СЃС‚Р°РІРєР°**. РќРµ СѓРіР°РґР°Р» вЂ” **-СЃС‚Р°РІРєР°**."
+                f"Канал: <#{Config.COIN_CHANNEL_ID}>\n"
+                "Выбираешь **орёл** или **решка** и указываешь ставку.\n"
+                "Угадал — **+ставка**. Не угадал — **-ставка**."
             ),
             inline=False,
         )
         embed.add_field(
-            name="рџЋІ /dice вЂ” РљРѕСЃС‚Рё",
+            name="🎲 /dice — Кости",
             value=(
-                f"РљР°РЅР°Р»: <#{Config.DICE_CHANNEL_ID}>\n"
-                "РўС‹ Р±СЂРѕСЃР°РµС€СЊ РєРѕСЃС‚Рё РїСЂРѕС‚РёРІ Р±РѕС‚Р°.\n"
-                "Р•СЃР»Рё С‡РёСЃР»Рѕ Р±РѕР»СЊС€Рµ вЂ” **+СЃС‚Р°РІРєР°**.\n"
-                "Р•СЃР»Рё РјРµРЅСЊС€Рµ вЂ” **-СЃС‚Р°РІРєР°**.\n"
-                "Р•СЃР»Рё РЅРёС‡СЊСЏ вЂ” Р±Р°Р»Р°РЅСЃ РЅРµ РјРµРЅСЏРµС‚СЃСЏ."
+                f"Канал: <#{Config.DICE_CHANNEL_ID}>\n"
+                "Ты бросаешь кости против бота.\n"
+                "Если число больше — **+ставка**.\n"
+                "Если меньше — **-ставка**.\n"
+                "Если ничья — баланс не меняется."
             ),
             inline=False,
         )
         embed.add_field(
-            name="рџЋ° /slots вЂ” РЎР»РѕС‚С‹",
+            name="🎰 /slots — Слоты",
             value=(
-                f"РљР°РЅР°Р»: <#{Config.SLOTS_CHANNEL_ID}>\n"
-                "**рџ’Ћрџ’Ћрџ’Ћ** в†’ **x5**\n"
-                "**3 РѕРґРёРЅР°РєРѕРІС‹С…** в†’ **x3**\n"
-                "**2 РѕРґРёРЅР°РєРѕРІС‹С…** в†’ **x1.5**\n"
-                "РќРµС‚ СЃРѕРІРїР°РґРµРЅРёР№ вЂ” **РїСЂРѕРёРіСЂС‹С€ СЃС‚Р°РІРєРё**."
+                f"Канал: <#{Config.SLOTS_CHANNEL_ID}>\n"
+                "**💎💎💎** → **x5**\n"
+                "**3 одинаковых** → **x3**\n"
+                "**2 одинаковых** → **x1.5**\n"
+                "Нет совпадений — **проигрыш ставки**."
             ),
             inline=False,
         )
         embed.add_field(
-            name="рџѓЏ /blackjack вЂ” Black Jack",
+            name="🃏 /blackjack — Black Jack",
             value=(
-                f"РљР°РЅР°Р»: <#{Config.BLACKJACK_CHANNEL_ID}>\n"
-                "РРЅС‚РµСЂР°РєС‚РёРІРЅР°СЏ РїР°СЂС‚РёСЏ РїСЂРѕС‚РёРІ РґРёР»РµСЂР° СЃ РєРЅРѕРїРєР°РјРё **Hit** Рё **Stand**.\n"
-                "РџРѕР±РµРґР° вЂ” **+СЃС‚Р°РІРєР°**, РЅР°С‚СѓСЂР°Р»СЊРЅС‹Р№ Black Jack вЂ” **x1.5 РѕС‚ СЃС‚Р°РІРєРё**.\n"
-                "РџРѕСЂР°Р¶РµРЅРёРµ вЂ” **-СЃС‚Р°РІРєР°**, РЅРёС‡СЊСЏ вЂ” Р±Р°Р»Р°РЅСЃ РЅРµ РјРµРЅСЏРµС‚СЃСЏ."
+                f"Канал: <#{Config.BLACKJACK_CHANNEL_ID}>\n"
+                "Интерактивная партия против дилера с кнопками **Hit** и **Stand**.\n"
+                "Победа — **+ставка**, натуральный Black Jack — **x1.5 от ставки**.\n"
+                "Поражение — **-ставка**, ничья — баланс не меняется."
             ),
             inline=False,
         )
         embed.add_field(
-            name="рџЋЃ /daily вЂ” Р•Р¶РµРґРЅРµРІРЅР°СЏ РЅР°РіСЂР°РґР°",
-            value=f"Р Р°Р· РІ 24 С‡Р°СЃР° РјРѕР¶РЅРѕ РїРѕР»СѓС‡РёС‚СЊ **{Config.DAILY_REWARD}** рџЄ™.",
+            name="🎁 /daily — Ежедневная награда",
+            value=f"Раз в 24 часа можно получить **{Config.DAILY_REWARD}** 🪙.",
             inline=False,
         )
-        embed.set_footer(text="Р­С‚Сѓ РёРЅС„РѕСЂРјР°С†РёСЋ РІРёРґРёС€СЊ С‚РѕР»СЊРєРѕ С‚С‹")
+        embed.set_footer(text="Эту информацию видишь только ты")
         return embed
 
     def _build_game_embed(
@@ -457,38 +456,38 @@ class Games(commands.Cog):
         balance_after: int,
     ) -> discord.Embed:
         embed = discord.Embed(title=f"{emoji} {title}", color=color)
-        embed.add_field(name="РРіСЂР°", value=game_name, inline=True)
-        embed.add_field(name="РРіСЂРѕРє", value=player.mention, inline=True)
-        embed.add_field(name="РЎС‚Р°РІРєР°", value=f"{bet} рџЄ™", inline=True)
-        embed.add_field(name="Р РµР·СѓР»СЊС‚Р°С‚", value="\n".join(result_lines), inline=False)
-        embed.add_field(name="Р‘Р°Р»Р°РЅСЃ РїРѕСЃР»Рµ РёРіСЂС‹", value=f"{balance_after} рџЄ™", inline=False)
+        embed.add_field(name="Игра", value=game_name, inline=True)
+        embed.add_field(name="Игрок", value=player.mention, inline=True)
+        embed.add_field(name="Ставка", value=f"{bet} 🪙", inline=True)
+        embed.add_field(name="Результат", value="\n".join(result_lines), inline=False)
+        embed.add_field(name="Баланс после игры", value=f"{balance_after} 🪙", inline=False)
         embed.set_thumbnail(url=player.display_avatar.url)
-        embed.set_footer(text=f"РРіСЂРѕРє: {player.display_name}")
+        embed.set_footer(text=f"Игрок: {player.display_name}")
         return embed
 
     async def send_private_topbalance(self, interaction: Interaction) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.", ephemeral=True)
+            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
             return
         top_data = self.profile_service.get_top_balances(limit=10)
         if not top_data:
-            await interaction.response.send_message("РџРѕРєР° РЅРµС‚ РґР°РЅРЅС‹С… РїРѕ Р±Р°Р»Р°РЅСЃСѓ.", ephemeral=True)
+            await interaction.response.send_message("Пока нет данных по балансу.", ephemeral=True)
             return
 
         lines: list[str] = []
-        medals = {1: "рџҐ‡", 2: "рџҐ€", 3: "рџҐ‰"}
+        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
         for index, (user_id, balance) in enumerate(top_data, start=1):
             member = interaction.guild.get_member(user_id)
             user_display = member.mention if member else f"<@{user_id}>"
             prefix = medals.get(index, f"**{index}.**")
-            lines.append(f"{prefix} {user_display} вЂ” **{balance}** рџЄ™")
+            lines.append(f"{prefix} {user_display} — **{balance}** 🪙")
 
         embed = discord.Embed(
-            title="рџ’° РўРѕРї РїРѕ Р±Р°Р»Р°РЅСЃСѓ",
+            title="💰 Топ по балансу",
             description="\n".join(lines),
             color=discord.Color.gold(),
         )
-        embed.set_footer(text="Р­С‚Сѓ РёРЅС„РѕСЂРјР°С†РёСЋ РІРёРґРёС€СЊ С‚РѕР»СЊРєРѕ С‚С‹")
+        embed.set_footer(text="Эту информацию видишь только ты")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def _send_high_stake_log(
@@ -505,12 +504,12 @@ class Games(commands.Cog):
         channel = interaction.guild.get_channel(Config.BALANCE_LOG_CHANNEL_ID)
         if not isinstance(channel, TextChannel):
             return
-        embed = discord.Embed(title="рџ’° Р›РѕРі РєСЂСѓРїРЅРѕР№ СЃС‚Р°РІРєРё", color=discord.Color.gold())
-        embed.add_field(name="РРіСЂР°", value=game_name, inline=True)
-        embed.add_field(name="РРіСЂРѕРє", value=interaction.user.mention, inline=True)
-        embed.add_field(name="РЎС‚Р°РІРєР°", value=f"{bet} рџЄ™", inline=True)
-        embed.add_field(name="Р РµР·СѓР»СЊС‚Р°С‚", value=result_text, inline=False)
-        embed.add_field(name="Р‘Р°Р»Р°РЅСЃ РїРѕСЃР»Рµ РёРіСЂС‹", value=f"{balance_after} рџЄ™", inline=True)
+        embed = discord.Embed(title="💰 Лог крупной ставки", color=discord.Color.gold())
+        embed.add_field(name="Игра", value=game_name, inline=True)
+        embed.add_field(name="Игрок", value=interaction.user.mention, inline=True)
+        embed.add_field(name="Ставка", value=f"{bet} 🪙", inline=True)
+        embed.add_field(name="Результат", value=result_text, inline=False)
+        embed.add_field(name="Баланс после игры", value=f"{balance_after} 🪙", inline=True)
         embed.set_footer(text=f"User ID: {interaction.user.id}")
         try:
             await channel.send(embed=embed)
@@ -521,30 +520,30 @@ class Games(commands.Cog):
         if interaction.channel_id == allowed_channel_id:
             return True
         await interaction.response.send_message(
-            f"вќЊ Р’ `{game_name}` РјРѕР¶РЅРѕ РёРіСЂР°С‚СЊ С‚РѕР»СЊРєРѕ РІ РєР°РЅР°Р»Рµ <#{allowed_channel_id}>.",
+            f"❌ В `{game_name}` можно играть только в канале <#{allowed_channel_id}>.",
             ephemeral=True,
         )
         return False
 
-    @app_commands.command(name="games", description="РџРѕРєР°Р·Р°С‚СЊ РїСЂР°РІРёР»Р° РІСЃРµС… РёРіСЂ")
+    @app_commands.command(name="games", description="Показать правила всех игр")
     async def games_cmd(self, interaction: Interaction) -> None:
         await interaction.response.send_message(embed=self.build_games_help_embed(), ephemeral=True)
 
-    @app_commands.command(name="topbalance", description="РџРѕРєР°Р·Р°С‚СЊ С‚РѕРї РёРіСЂРѕРєРѕРІ РїРѕ Р±Р°Р»Р°РЅСЃСѓ")
+    @app_commands.command(name="topbalance", description="Показать топ игроков по балансу")
     async def topbalance_cmd(self, interaction: Interaction) -> None:
         await self.send_private_topbalance(interaction)
 
-    @app_commands.command(name="daily", description="РџРѕР»СѓС‡РёС‚СЊ РµР¶РµРґРЅРµРІРЅСѓСЋ РЅР°РіСЂР°РґСѓ")
+    @app_commands.command(name="daily", description="Получить ежедневную награду")
     async def daily_cmd(self, interaction: Interaction) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.", ephemeral=True)
+            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
             return
         allowed, left = self.profile_service.can_claim_daily(interaction.user.id)
         if not allowed:
             hours = left // 3600
             minutes = (left % 3600) // 60
             await interaction.response.send_message(
-                f"вЏі Р•Р¶РµРґРЅРµРІРЅСѓСЋ РЅР°РіСЂР°РґСѓ СѓР¶Рµ Р·Р°Р±СЂР°Р»Рё. РџРѕРїСЂРѕР±СѓР№ СЃРЅРѕРІР° С‡РµСЂРµР· **{hours} С‡ {minutes} РјРёРЅ**.",
+                f"⏳ Ежедневную награду уже забрали. Попробуй снова через **{hours} ч {minutes} мин**.",
                 ephemeral=True,
             )
             return
@@ -555,34 +554,34 @@ class Games(commands.Cog):
         else:
             new_balance = self.profile_service.claim_daily(interaction.user.id)
         embed = discord.Embed(
-            title="рџЋЃ Р•Р¶РµРґРЅРµРІРЅР°СЏ РЅР°РіСЂР°РґР°",
-            description=f"РўС‹ РїРѕР»СѓС‡РёР» **{reward_amount}** рџЄ™\nРќРѕРІС‹Р№ Р±Р°Р»Р°РЅСЃ: **{new_balance}** рџЄ™",
+            title="🎁 Ежедневная награда",
+            description=f"Ты получил **{reward_amount}** 🪙\nНовый баланс: **{new_balance}** 🪙",
             color=discord.Color.green(),
         )
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
-        embed.set_footer(text=f"РРіСЂРѕРє: {interaction.user.display_name}")
+        embed.set_footer(text=f"Игрок: {interaction.user.display_name}")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="coin", description="РџРѕРґР±СЂРѕСЃРёС‚СЊ РјРѕРЅРµС‚РєСѓ Рё СЃС‹РіСЂР°С‚СЊ РЅР° Р±Р°Р»Р°РЅСЃ")
-    @app_commands.choices(side=[app_commands.Choice(name="РѕСЂС‘Р»", value="РѕСЂС‘Р»"), app_commands.Choice(name="СЂРµС€РєР°", value="СЂРµС€РєР°")])
+    @app_commands.command(name="coin", description="Подбросить монетку и сыграть на баланс")
+    @app_commands.choices(side=[app_commands.Choice(name="орёл", value="орёл"), app_commands.Choice(name="решка", value="решка")])
     async def coin_cmd(self, interaction: Interaction, side: app_commands.Choice[str], bet: int) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.", ephemeral=True)
+            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
             return
         if not await self._check_game_channel(interaction, allowed_channel_id=Config.COIN_CHANNEL_ID, game_name="/coin"):
             return
         if bet <= 0:
-            await interaction.response.send_message("вќЊ РЎС‚Р°РІРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.", ephemeral=True)
+            await interaction.response.send_message("❌ Ставка должна быть больше 0.", ephemeral=True)
             return
         profile = self.profile_service.get_profile(interaction.user.id)
         if profile.balance < bet:
             await interaction.response.send_message(
-                f"вќЊ РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РјРѕРЅРµС‚. РўРІРѕР№ Р±Р°Р»Р°РЅСЃ: **{profile.balance}** рџЄ™",
+                f"❌ Недостаточно монет. Твой баланс: **{profile.balance}** 🪙",
                 ephemeral=True,
             )
             return
 
-        result = random.choice(["РѕСЂС‘Р»", "СЂРµС€РєР°"])
+        result = random.choice(["орёл", "решка"])
         win = side.value == result
         if win:
             win_amount = bet
@@ -591,46 +590,46 @@ class Games(commands.Cog):
                 win_amount, bonus_lines = self.shop_service.apply_game_win_bonus(interaction.user.id, bet)
             new_balance = self.profile_service.add_balance(interaction.user.id, win_amount)
             embed = self._build_game_embed(
-                title="РњРѕРЅРµС‚РєР°: РїРѕР±РµРґР°",
-                emoji="рџЄ™",
+                title="Монетка: победа",
+                emoji="🪙",
                 color=discord.Color.green(),
                 player=interaction.user,
-                game_name="РњРѕРЅРµС‚РєР°",
+                game_name="Монетка",
                 bet=bet,
-                result_lines=[f"РўС‹ РІС‹Р±СЂР°Р»: **{side.value}**", f"Р’С‹РїР°Р»Рѕ: **{result}**", f"Р’С‹РёРіСЂС‹С€: **+{win_amount}** рџЄ™", *bonus_lines],
+                result_lines=[f"Ты выбрал: **{side.value}**", f"Выпало: **{result}**", f"Выигрыш: **+{win_amount}** 🪙", *bonus_lines],
                 balance_after=new_balance,
             )
-            result_text = f"РџРѕР±РµРґР°, РІС‹РїР°Р»Рѕ {result}, РІС‹РёРіСЂС‹С€ {win_amount}"
+            result_text = f"Победа, выпало {result}, выигрыш {win_amount}"
         else:
             new_balance = self.profile_service.add_balance(interaction.user.id, -bet)
             embed = self._build_game_embed(
-                title="РњРѕРЅРµС‚РєР°: РїРѕСЂР°Р¶РµРЅРёРµ",
-                emoji="рџЄ™",
+                title="Монетка: поражение",
+                emoji="🪙",
                 color=discord.Color.red(),
                 player=interaction.user,
-                game_name="РњРѕРЅРµС‚РєР°",
+                game_name="Монетка",
                 bet=bet,
-                result_lines=[f"РўС‹ РІС‹Р±СЂР°Р»: **{side.value}**", f"Р’С‹РїР°Р»Рѕ: **{result}**", f"РџСЂРѕРёРіСЂС‹С€: **-{bet}** рџЄ™"],
+                result_lines=[f"Ты выбрал: **{side.value}**", f"Выпало: **{result}**", f"Проигрыш: **-{bet}** 🪙"],
                 balance_after=new_balance,
             )
-            result_text = f"РџРѕСЂР°Р¶РµРЅРёРµ, РІС‹РїР°Р»Рѕ {result}"
+            result_text = f"Поражение, выпало {result}"
         await interaction.response.send_message(embed=embed)
-        await self._send_high_stake_log(interaction, game_name="РњРѕРЅРµС‚РєР°", bet=bet, result_text=result_text, balance_after=new_balance)
+        await self._send_high_stake_log(interaction, game_name="Монетка", bet=bet, result_text=result_text, balance_after=new_balance)
 
-    @app_commands.command(name="dice", description="Р‘СЂРѕСЃРёС‚СЊ РєРѕСЃС‚Рё РїСЂРѕС‚РёРІ Р±РѕС‚Р° Рё СЃС‹РіСЂР°С‚СЊ РЅР° Р±Р°Р»Р°РЅСЃ")
+    @app_commands.command(name="dice", description="Бросить кости против бота и сыграть на баланс")
     async def dice_cmd(self, interaction: Interaction, bet: int) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.", ephemeral=True)
+            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
             return
         if not await self._check_game_channel(interaction, allowed_channel_id=Config.DICE_CHANNEL_ID, game_name="/dice"):
             return
         if bet <= 0:
-            await interaction.response.send_message("вќЊ РЎС‚Р°РІРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.", ephemeral=True)
+            await interaction.response.send_message("❌ Ставка должна быть больше 0.", ephemeral=True)
             return
         profile = self.profile_service.get_profile(interaction.user.id)
         if profile.balance < bet:
             await interaction.response.send_message(
-                f"вќЊ РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РјРѕРЅРµС‚. РўРІРѕР№ Р±Р°Р»Р°РЅСЃ: **{profile.balance}** рџЄ™",
+                f"❌ Недостаточно монет. Твой баланс: **{profile.balance}** 🪙",
                 ephemeral=True,
             )
             return
@@ -644,64 +643,64 @@ class Games(commands.Cog):
                 win_amount, bonus_lines = self.shop_service.apply_game_win_bonus(interaction.user.id, bet)
             new_balance = self.profile_service.add_balance(interaction.user.id, win_amount)
             embed = self._build_game_embed(
-                title="РљРѕСЃС‚Рё: РїРѕР±РµРґР°",
-                emoji="рџЋІ",
+                title="Кости: победа",
+                emoji="🎲",
                 color=discord.Color.green(),
                 player=interaction.user,
-                game_name="РљРѕСЃС‚Рё",
+                game_name="Кости",
                 bet=bet,
-                result_lines=[f"РўРІРѕР№ Р±СЂРѕСЃРѕРє: **{user_roll}**", f"Р‘СЂРѕСЃРѕРє Р±РѕС‚Р°: **{bot_roll}**", f"Р’С‹РёРіСЂС‹С€: **+{win_amount}** рџЄ™", *bonus_lines],
+                result_lines=[f"Твой бросок: **{user_roll}**", f"Бросок бота: **{bot_roll}**", f"Выигрыш: **+{win_amount}** 🪙", *bonus_lines],
                 balance_after=new_balance,
             )
-            result_text = f"РџРѕР±РµРґР°: РёРіСЂРѕРє {user_roll}, Р±РѕС‚ {bot_roll}, РІС‹РёРіСЂС‹С€ {win_amount}"
+            result_text = f"Победа: игрок {user_roll}, бот {bot_roll}, выигрыш {win_amount}"
         elif user_roll < bot_roll:
             new_balance = self.profile_service.add_balance(interaction.user.id, -bet)
             embed = self._build_game_embed(
-                title="РљРѕСЃС‚Рё: РїРѕСЂР°Р¶РµРЅРёРµ",
-                emoji="рџЋІ",
+                title="Кости: поражение",
+                emoji="🎲",
                 color=discord.Color.red(),
                 player=interaction.user,
-                game_name="РљРѕСЃС‚Рё",
+                game_name="Кости",
                 bet=bet,
-                result_lines=[f"РўРІРѕР№ Р±СЂРѕСЃРѕРє: **{user_roll}**", f"Р‘СЂРѕСЃРѕРє Р±РѕС‚Р°: **{bot_roll}**", f"РџСЂРѕРёРіСЂС‹С€: **-{bet}** рџЄ™"],
+                result_lines=[f"Твой бросок: **{user_roll}**", f"Бросок бота: **{bot_roll}**", f"Проигрыш: **-{bet}** 🪙"],
                 balance_after=new_balance,
             )
-            result_text = f"РџРѕСЂР°Р¶РµРЅРёРµ: РёРіСЂРѕРє {user_roll}, Р±РѕС‚ {bot_roll}"
+            result_text = f"Поражение: игрок {user_roll}, бот {bot_roll}"
         else:
             new_balance = profile.balance
             embed = self._build_game_embed(
-                title="РљРѕСЃС‚Рё: РЅРёС‡СЊСЏ",
-                emoji="рџЋІ",
+                title="Кости: ничья",
+                emoji="🎲",
                 color=discord.Color.blurple(),
                 player=interaction.user,
-                game_name="РљРѕСЃС‚Рё",
+                game_name="Кости",
                 bet=bet,
-                result_lines=[f"РўРІРѕР№ Р±СЂРѕСЃРѕРє: **{user_roll}**", f"Р‘СЂРѕСЃРѕРє Р±РѕС‚Р°: **{bot_roll}**", "РќРёС‡СЊСЏ: Р±Р°Р»Р°РЅСЃ РЅРµ РёР·РјРµРЅРёР»СЃСЏ"],
+                result_lines=[f"Твой бросок: **{user_roll}**", f"Бросок бота: **{bot_roll}**", "Ничья: баланс не изменился"],
                 balance_after=new_balance,
             )
-            result_text = f"РќРёС‡СЊСЏ: РёРіСЂРѕРє {user_roll}, Р±РѕС‚ {bot_roll}"
+            result_text = f"Ничья: игрок {user_roll}, бот {bot_roll}"
         await interaction.response.send_message(embed=embed)
-        await self._send_high_stake_log(interaction, game_name="РљРѕСЃС‚Рё", bet=bet, result_text=result_text, balance_after=new_balance)
+        await self._send_high_stake_log(interaction, game_name="Кости", bet=bet, result_text=result_text, balance_after=new_balance)
 
-    @app_commands.command(name="slots", description="РЎС‹РіСЂР°С‚СЊ РІ СЃР»РѕС‚С‹ РЅР° Р±Р°Р»Р°РЅСЃ")
+    @app_commands.command(name="slots", description="Сыграть в слоты на баланс")
     async def slots_cmd(self, interaction: Interaction, bet: int) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.", ephemeral=True)
+            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
             return
         if not await self._check_game_channel(interaction, allowed_channel_id=Config.SLOTS_CHANNEL_ID, game_name="/slots"):
             return
         if bet <= 0:
-            await interaction.response.send_message("вќЊ РЎС‚Р°РІРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.", ephemeral=True)
+            await interaction.response.send_message("❌ Ставка должна быть больше 0.", ephemeral=True)
             return
         profile = self.profile_service.get_profile(interaction.user.id)
         if profile.balance < bet:
             await interaction.response.send_message(
-                f"вќЊ РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РјРѕРЅРµС‚. РўРІРѕР№ Р±Р°Р»Р°РЅСЃ: **{profile.balance}** рџЄ™",
+                f"❌ Недостаточно монет. Твой баланс: **{profile.balance}** 🪙",
                 ephemeral=True,
             )
             return
 
-        symbols = ["рџЌ’", "рџЌ‹", "рџ””", "7пёЏвѓЈ", "рџ’Ћ"]
+        symbols = ["🍒", "🍋", "🔔", "7️⃣", "💎"]
         roll = [random.choice(symbols) for _ in range(3)]
         vip_slot_active = self.shop_service.consume_vip_slot_effect(interaction.user.id) if self.shop_service is not None else False
         if vip_slot_active and len(set(roll)) == 3:
@@ -709,27 +708,27 @@ class Games(commands.Cog):
             roll[1] = chosen
             roll[2] = chosen
         multiplier = 0.0
-        result_name = "РџСЂРѕРёРіСЂС‹С€"
-        if roll == ["рџ’Ћ", "рџ’Ћ", "рџ’Ћ"]:
+        result_name = "Проигрыш"
+        if roll == ["💎", "💎", "💎"]:
             multiplier = 5.0
-            result_name = "Р”Р¶РµРєРїРѕС‚"
+            result_name = "Джекпот"
         elif roll[0] == roll[1] == roll[2]:
             multiplier = 3.0
-            result_name = "РўСЂРѕР№РЅРѕРµ СЃРѕРІРїР°РґРµРЅРёРµ"
+            result_name = "Тройное совпадение"
         elif roll[0] == roll[1] or roll[0] == roll[2] or roll[1] == roll[2]:
             multiplier = 1.5
-            result_name = "Р”РІРѕР№РЅРѕРµ СЃРѕРІРїР°РґРµРЅРёРµ"
+            result_name = "Двойное совпадение"
 
         if multiplier == 0.0:
             new_balance = self.profile_service.add_balance(interaction.user.id, -bet)
             embed = self._build_game_embed(
-                title="РЎР»РѕС‚С‹: РїСЂРѕРёРіСЂС‹С€",
-                emoji="рџЋ°",
+                title="Слоты: проигрыш",
+                emoji="🎰",
                 color=discord.Color.red(),
                 player=interaction.user,
-                game_name="РЎР»РѕС‚С‹",
+                game_name="Слоты",
                 bet=bet,
-                result_lines=[f"РљРѕРјР±РёРЅР°С†РёСЏ: **{' | '.join(roll)}**", f"Р РµР·СѓР»СЊС‚Р°С‚: **{result_name}**", f"РџСЂРѕРёРіСЂС‹С€: **-{bet}** рџЄ™"],
+                result_lines=[f"Комбинация: **{' | '.join(roll)}**", f"Результат: **{result_name}**", f"Проигрыш: **-{bet}** 🪙"],
                 balance_after=new_balance,
             )
             result_text = f"{result_name}: {' | '.join(roll)}"
@@ -737,49 +736,49 @@ class Games(commands.Cog):
             win_amount = int(bet * multiplier)
             bonus_lines: list[str] = []
             if vip_slot_active:
-                bonus_lines.append("рџЋ° РЎСЂР°Р±РѕС‚Р°Р» VIP СЃР»РѕС‚: РјРёРЅРёРјСѓРј РґРІРѕР№РЅРѕРµ СЃРѕРІРїР°РґРµРЅРёРµ РіР°СЂР°РЅС‚РёСЂРѕРІР°РЅРѕ.")
+                bonus_lines.append("🎰 Сработал VIP слот: минимум двойное совпадение гарантировано.")
             if self.shop_service is not None:
                 win_amount, extra_bonus_lines = self.shop_service.apply_game_win_bonus(interaction.user.id, win_amount)
                 bonus_lines.extend(extra_bonus_lines)
             new_balance = self.profile_service.add_balance(interaction.user.id, win_amount)
             embed = self._build_game_embed(
-                title="РЎР»РѕС‚С‹: РїРѕР±РµРґР°",
-                emoji="рџЋ°",
+                title="Слоты: победа",
+                emoji="🎰",
                 color=discord.Color.green(),
                 player=interaction.user,
-                game_name="РЎР»РѕС‚С‹",
+                game_name="Слоты",
                 bet=bet,
                 result_lines=[
-                    f"РљРѕРјР±РёРЅР°С†РёСЏ: **{' | '.join(roll)}**",
-                    f"Р РµР·СѓР»СЊС‚Р°С‚: **{result_name}**",
-                    f"РњРЅРѕР¶РёС‚РµР»СЊ: **x{multiplier}**",
-                    f"Р’С‹РёРіСЂС‹С€: **+{win_amount}** рџЄ™",
+                    f"Комбинация: **{' | '.join(roll)}**",
+                    f"Результат: **{result_name}**",
+                    f"Множитель: **x{multiplier}**",
+                    f"Выигрыш: **+{win_amount}** 🪙",
                     *bonus_lines,
                 ],
                 balance_after=new_balance,
             )
             result_text = f"{result_name}: {' | '.join(roll)} | x{multiplier}"
         await interaction.response.send_message(embed=embed)
-        await self._send_high_stake_log(interaction, game_name="РЎР»РѕС‚С‹", bet=bet, result_text=result_text, balance_after=new_balance)
+        await self._send_high_stake_log(interaction, game_name="Слоты", bet=bet, result_text=result_text, balance_after=new_balance)
 
-    @app_commands.command(name="blackjack", description="РЎС‹РіСЂР°С‚СЊ РІ Black Jack РїСЂРѕС‚РёРІ РґРёР»РµСЂР°")
+    @app_commands.command(name="blackjack", description="Сыграть в Black Jack против дилера")
     async def blackjack_cmd(self, interaction: Interaction, bet: int) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message("РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.", ephemeral=True)
+            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
             return
         if not await self._check_game_channel(interaction, allowed_channel_id=Config.BLACKJACK_CHANNEL_ID, game_name="/blackjack"):
             return
         if bet <= 0:
-            await interaction.response.send_message("вќЊ РЎС‚Р°РІРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.", ephemeral=True)
+            await interaction.response.send_message("❌ Ставка должна быть больше 0.", ephemeral=True)
             return
         if interaction.user.id in self.active_blackjack_games:
-            await interaction.response.send_message("вќЊ РЈ С‚РµР±СЏ СѓР¶Рµ РµСЃС‚СЊ Р°РєС‚РёРІРЅР°СЏ РїР°СЂС‚РёСЏ РІ Black Jack. Р—Р°РєРѕРЅС‡Рё РµС‘ РёР»Рё РґРѕР¶РґРёСЃСЊ С‚Р°Р№Рј-Р°СѓС‚Р°.", ephemeral=True)
+            await interaction.response.send_message("❌ У тебя уже есть активная партия в Black Jack. Закончи её или дождись тайм-аута.", ephemeral=True)
             return
 
         profile = self.profile_service.get_profile(interaction.user.id)
         if profile.balance < bet:
             await interaction.response.send_message(
-                f"вќЊ РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РјРѕРЅРµС‚. РўРІРѕР№ Р±Р°Р»Р°РЅСЃ: **{profile.balance}** рџЄ™",
+                f"❌ Недостаточно монет. Твой баланс: **{profile.balance}** 🪙",
                 ephemeral=True,
             )
             return
@@ -805,6 +804,4 @@ class Games(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Games(bot), guild=Config.SERVER_OBJ)
-
-
 
