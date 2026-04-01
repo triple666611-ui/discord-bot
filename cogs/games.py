@@ -7,13 +7,305 @@ from discord.ext import commands
 
 from config import Config
 
+BLACKJACK_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
+BLACKJACK_SUITS = ["♠", "♥", "♦", "♣"]
+BLACKJACK_TIMEOUT_SEC = 120
+
+
+class BlackJackView(discord.ui.View):
+    def __init__(self, cog: "Games", player: discord.abc.User, bet: int):
+        super().__init__(timeout=BLACKJACK_TIMEOUT_SEC)
+        self.cog = cog
+        self.player = player
+        self.bet = bet
+        self.message: discord.Message | None = None
+        self.finished = False
+        self.player_hand = [self._draw_card(), self._draw_card()]
+        self.dealer_hand = [self._draw_card(), self._draw_card()]
+
+    def _draw_card(self) -> tuple[str, str]:
+        return random.choice(BLACKJACK_RANKS), random.choice(BLACKJACK_SUITS)
+
+    def _card_label(self, card: tuple[str, str]) -> str:
+        rank, suit = card
+        return f"{rank}{suit}"
+
+    def _hand_value(self, hand: list[tuple[str, str]]) -> int:
+        total = 0
+        aces = 0
+        for rank, _ in hand:
+            if rank in {"J", "Q", "K"}:
+                total += 10
+            elif rank == "A":
+                total += 11
+                aces += 1
+            else:
+                total += int(rank)
+
+        while total > 21 and aces > 0:
+            total -= 10
+            aces -= 1
+        return total
+
+    def _format_hand(self, hand: list[tuple[str, str]], *, hide_last: bool) -> str:
+        cards = [self._card_label(card) for card in hand]
+        if hide_last and cards:
+            cards = [*cards[:-1], "?"]
+        return " | ".join(cards)
+
+    def _build_embed(
+        self,
+        *,
+        title: str,
+        color: discord.Color,
+        result_lines: list[str],
+        reveal_dealer: bool,
+        balance_after: int | None = None,
+    ) -> discord.Embed:
+        embed = discord.Embed(title=f"🃏 {title}", color=color)
+        embed.add_field(name="Игра", value="Black Jack", inline=True)
+        embed.add_field(name="Игрок", value=self.player.mention, inline=True)
+        embed.add_field(name="Ставка", value=f"{self.bet} 🪙", inline=True)
+
+        player_total = self._hand_value(self.player_hand)
+        dealer_total = self._hand_value(self.dealer_hand)
+        dealer_value = str(dealer_total) if reveal_dealer else "?"
+
+        embed.add_field(
+            name="Твоя рука",
+            value=f"{self._format_hand(self.player_hand, hide_last=False)}\nСумма: **{player_total}**",
+            inline=False,
+        )
+        embed.add_field(
+            name="Рука дилера",
+            value=f"{self._format_hand(self.dealer_hand, hide_last=not reveal_dealer)}\nСумма: **{dealer_value}**",
+            inline=False,
+        )
+        embed.add_field(name="Статус", value="\n".join(result_lines), inline=False)
+        if balance_after is not None:
+            embed.add_field(name="Баланс после игры", value=f"{balance_after} 🪙", inline=False)
+        embed.set_thumbnail(url=self.player.display_avatar.url)
+        embed.set_footer(text=f"Игрок: {self.player.display_name}")
+        return embed
+
+    def build_live_embed(self) -> discord.Embed:
+        return self._build_embed(
+            title="Black Jack: ход",
+            color=discord.Color.blurple(),
+            result_lines=[
+                "Нажми **Hit**, чтобы взять карту.",
+                "Нажми **Stand**, чтобы остановиться и передать ход дилеру.",
+            ],
+            reveal_dealer=False,
+        )
+
+    def _disable_controls(self) -> None:
+        for item in self.children:
+            if hasattr(item, "disabled"):
+                item.disabled = True
+
+    async def _finish(
+        self,
+        interaction: Interaction,
+        *,
+        title: str,
+        color: discord.Color,
+        result_lines: list[str],
+        balance_after: int,
+        result_text: str,
+    ) -> None:
+        self.finished = True
+        self._disable_controls()
+        self.stop()
+        self.cog.unregister_blackjack_game(self.player.id)
+
+        embed = self._build_embed(
+            title=title,
+            color=color,
+            result_lines=result_lines,
+            reveal_dealer=True,
+            balance_after=balance_after,
+        )
+        await interaction.response.edit_message(embed=embed, view=self)
+        await self.cog._send_high_stake_log(
+            interaction,
+            game_name="Black Jack",
+            bet=self.bet,
+            result_text=result_text,
+            balance_after=balance_after,
+        )
+
+    def resolve_opening_hand(self) -> tuple[discord.Embed, int, str] | None:
+        player_total = self._hand_value(self.player_hand)
+        dealer_total = self._hand_value(self.dealer_hand)
+        player_blackjack = player_total == 21 and len(self.player_hand) == 2
+        dealer_blackjack = dealer_total == 21 and len(self.dealer_hand) == 2
+
+        if not player_blackjack and not dealer_blackjack:
+            return None
+
+        self.finished = True
+        self._disable_controls()
+        self.stop()
+        self.cog.unregister_blackjack_game(self.player.id)
+
+        if player_blackjack and dealer_blackjack:
+            balance_after = self.cog.profile_service.get_profile(self.player.id).balance
+            title = "Black Jack: ничья"
+            color = discord.Color.blurple()
+            result_lines = ["У тебя и у дилера Black Jack.", "Ничья: баланс не изменился."]
+            result_text = "Ничья: у обоих Black Jack"
+        elif player_blackjack:
+            win_amount = int(self.bet * 1.5)
+            bonus_lines: list[str] = []
+            if self.cog.shop_service is not None:
+                win_amount, bonus_lines = self.cog.shop_service.apply_game_win_bonus(self.player.id, win_amount)
+            balance_after = self.cog.profile_service.add_balance(self.player.id, win_amount)
+            title = "Black Jack: победа"
+            color = discord.Color.green()
+            result_lines = ["У тебя натуральный Black Jack.", f"Выигрыш: **+{win_amount}** 🪙", *bonus_lines]
+            result_text = f"Победа: натуральный Black Jack, выигрыш {win_amount}"
+        else:
+            balance_after = self.cog.profile_service.add_balance(self.player.id, -self.bet)
+            title = "Black Jack: поражение"
+            color = discord.Color.red()
+            result_lines = ["Дилер сразу собрал Black Jack.", f"Проигрыш: **-{self.bet}** 🪙"]
+            result_text = "Поражение: дилер получил натуральный Black Jack"
+
+        embed = self._build_embed(
+            title=title,
+            color=color,
+            result_lines=result_lines,
+            reveal_dealer=True,
+            balance_after=balance_after,
+        )
+        return embed, balance_after, result_text
+
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        if interaction.user.id == self.player.id:
+            return True
+        await interaction.response.send_message("Эта партия открыта для другого игрока.", ephemeral=True)
+        return False
+
+    async def on_timeout(self) -> None:
+        if self.finished:
+            return
+        self.finished = True
+        self._disable_controls()
+        self.stop()
+        self.cog.unregister_blackjack_game(self.player.id)
+        if self.message is None:
+            return
+        embed = self._build_embed(
+            title="Black Jack: время вышло",
+            color=discord.Color.orange(),
+            result_lines=["Игра закрыта из-за бездействия.", "Ставка не списана, баланс не изменился."],
+            reveal_dealer=True,
+            balance_after=self.cog.profile_service.get_profile(self.player.id).balance,
+        )
+        try:
+            await self.message.edit(embed=embed, view=self)
+        except discord.HTTPException:
+            pass
+
+    @discord.ui.button(label="Hit", style=discord.ButtonStyle.green)
+    async def hit_button(self, interaction: Interaction, _: discord.ui.Button) -> None:
+        self.player_hand.append(self._draw_card())
+        player_total = self._hand_value(self.player_hand)
+
+        if player_total > 21:
+            balance_after = self.cog.profile_service.add_balance(self.player.id, -self.bet)
+            await self._finish(
+                interaction,
+                title="Black Jack: поражение",
+                color=discord.Color.red(),
+                result_lines=["Ты взял ещё карту и перебрал 21.", f"Проигрыш: **-{self.bet}** 🪙"],
+                balance_after=balance_after,
+                result_text=f"Поражение: перебор игрока ({player_total})",
+            )
+            return
+
+        if player_total == 21:
+            await self._resolve_stand(interaction)
+            return
+
+        await interaction.response.edit_message(embed=self.build_live_embed(), view=self)
+
+    async def _resolve_stand(self, interaction: Interaction) -> None:
+        while self._hand_value(self.dealer_hand) < 17:
+            self.dealer_hand.append(self._draw_card())
+
+        player_total = self._hand_value(self.player_hand)
+        dealer_total = self._hand_value(self.dealer_hand)
+
+        if dealer_total > 21 or player_total > dealer_total:
+            win_amount = self.bet
+            bonus_lines: list[str] = []
+            if self.cog.shop_service is not None:
+                win_amount, bonus_lines = self.cog.shop_service.apply_game_win_bonus(self.player.id, win_amount)
+            balance_after = self.cog.profile_service.add_balance(self.player.id, win_amount)
+            await self._finish(
+                interaction,
+                title="Black Jack: победа",
+                color=discord.Color.green(),
+                result_lines=[
+                    f"Твоя сумма: **{player_total}**",
+                    f"Сумма дилера: **{dealer_total}**",
+                    f"Выигрыш: **+{win_amount}** 🪙",
+                    *bonus_lines,
+                ],
+                balance_after=balance_after,
+                result_text=f"Победа: игрок {player_total}, дилер {dealer_total}, выигрыш {win_amount}",
+            )
+            return
+
+        if player_total < dealer_total:
+            balance_after = self.cog.profile_service.add_balance(self.player.id, -self.bet)
+            await self._finish(
+                interaction,
+                title="Black Jack: поражение",
+                color=discord.Color.red(),
+                result_lines=[
+                    f"Твоя сумма: **{player_total}**",
+                    f"Сумма дилера: **{dealer_total}**",
+                    f"Проигрыш: **-{self.bet}** 🪙",
+                ],
+                balance_after=balance_after,
+                result_text=f"Поражение: игрок {player_total}, дилер {dealer_total}",
+            )
+            return
+
+        balance_after = self.cog.profile_service.get_profile(self.player.id).balance
+        await self._finish(
+            interaction,
+            title="Black Jack: ничья",
+            color=discord.Color.blurple(),
+            result_lines=[
+                f"Твоя сумма: **{player_total}**",
+                f"Сумма дилера: **{dealer_total}**",
+                "Ничья: баланс не изменился.",
+            ],
+            balance_after=balance_after,
+            result_text=f"Ничья: игрок {player_total}, дилер {dealer_total}",
+        )
+
+    @discord.ui.button(label="Stand", style=discord.ButtonStyle.blurple)
+    async def stand_button(self, interaction: Interaction, _: discord.ui.Button) -> None:
+        await self._resolve_stand(interaction)
+
 
 class Games(commands.Cog):
-
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.profile_service = cast(Any, bot).profile_service
         self.shop_service = getattr(cast(Any, bot), "shop_service", None)
+        self.active_blackjack_games: set[int] = set()
+
+    def register_blackjack_game(self, user_id: int) -> None:
+        self.active_blackjack_games.add(user_id)
+
+    def unregister_blackjack_game(self, user_id: int) -> None:
+        self.active_blackjack_games.discard(user_id)
 
     def build_games_help_embed(self) -> discord.Embed:
         embed = discord.Embed(
@@ -25,7 +317,7 @@ class Games(commands.Cog):
             name="🪙 /coin — Монетка",
             value=(
                 f"Канал: <#{Config.COIN_CHANNEL_ID}>\n"
-                "Выбираешь **орел** или **решка** и указываешь ставку.\n"
+                "Выбираешь **орёл** или **решка** и указываешь ставку.\n"
                 "Угадал — **+ставка**. Не угадал — **-ставка**."
             ),
             inline=False,
@@ -34,7 +326,7 @@ class Games(commands.Cog):
             name="🎲 /dice — Кости",
             value=(
                 f"Канал: <#{Config.DICE_CHANNEL_ID}>\n"
-                "Ты бросаешь Кости против бота.\n"
+                "Ты бросаешь кости против бота.\n"
                 "Если число больше — **+ставка**.\n"
                 "Если меньше — **-ставка**.\n"
                 "Если ничья — баланс не меняется."
@@ -49,6 +341,16 @@ class Games(commands.Cog):
                 "**3 одинаковых** → **x3**\n"
                 "**2 одинаковых** → **x1.5**\n"
                 "Нет совпадений — **проигрыш ставки**."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="🃏 /blackjack — Black Jack",
+            value=(
+                f"Канал: <#{Config.BLACKJACK_CHANNEL_ID}>\n"
+                "Интерактивная партия против дилера с кнопками **Hit** и **Stand**.\n"
+                "Победа — **+ставка**, натуральный Black Jack — **x1.5 от ставки**.\n"
+                "Поражение — **-ставка**, ничья — баланс не меняется."
             ),
             inline=False,
         )
@@ -180,7 +482,7 @@ class Games(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="coin", description="Подбросить монетку и сыграть на баланс")
-    @app_commands.choices(side=[app_commands.Choice(name="орел", value="орел"), app_commands.Choice(name="решка", value="решка")])
+    @app_commands.choices(side=[app_commands.Choice(name="орёл", value="орёл"), app_commands.Choice(name="решка", value="решка")])
     async def coin_cmd(self, interaction: Interaction, side: app_commands.Choice[str], bet: int) -> None:
         if interaction.guild is None:
             await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
@@ -198,7 +500,7 @@ class Games(commands.Cog):
             )
             return
 
-        result = random.choice(["орел", "решка"])
+        result = random.choice(["орёл", "решка"])
         win = side.value == result
         if win:
             win_amount = bet
@@ -233,7 +535,7 @@ class Games(commands.Cog):
         await interaction.response.send_message(embed=embed)
         await self._send_high_stake_log(interaction, game_name="Монетка", bet=bet, result_text=result_text, balance_after=new_balance)
 
-    @app_commands.command(name="dice", description="Бросить Кости против бота и сыграть на баланс")
+    @app_commands.command(name="dice", description="Бросить кости против бота и сыграть на баланс")
     async def dice_cmd(self, interaction: Interaction, bet: int) -> None:
         if interaction.guild is None:
             await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
@@ -378,6 +680,47 @@ class Games(commands.Cog):
         await interaction.response.send_message(embed=embed)
         await self._send_high_stake_log(interaction, game_name="Слоты", bet=bet, result_text=result_text, balance_after=new_balance)
 
+    @app_commands.command(name="blackjack", description="Сыграть в Black Jack против дилера")
+    async def blackjack_cmd(self, interaction: Interaction, bet: int) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)
+            return
+        if not await self._check_game_channel(interaction, allowed_channel_id=Config.BLACKJACK_CHANNEL_ID, game_name="/blackjack"):
+            return
+        if bet <= 0:
+            await interaction.response.send_message("❌ Ставка должна быть больше 0.", ephemeral=True)
+            return
+        if interaction.user.id in self.active_blackjack_games:
+            await interaction.response.send_message("❌ У тебя уже есть активная партия в Black Jack. Закончи её или дождись тайм-аута.", ephemeral=True)
+            return
+
+        profile = self.profile_service.get_profile(interaction.user.id)
+        if profile.balance < bet:
+            await interaction.response.send_message(
+                f"❌ Недостаточно монет. Твой баланс: **{profile.balance}** 🪙",
+                ephemeral=True,
+            )
+            return
+
+        self.register_blackjack_game(interaction.user.id)
+        view = BlackJackView(self, interaction.user, bet)
+        opening_result = view.resolve_opening_hand()
+        if opening_result is not None:
+            embed, balance_after, result_text = opening_result
+            await interaction.response.send_message(embed=embed)
+            await self._send_high_stake_log(
+                interaction,
+                game_name="Black Jack",
+                bet=bet,
+                result_text=result_text,
+                balance_after=balance_after,
+            )
+            return
+
+        await interaction.response.send_message(embed=view.build_live_embed(), view=view)
+        view.message = await interaction.original_response()
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Games(bot), guild=Config.SERVER_OBJ)
+
