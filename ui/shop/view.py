@@ -8,8 +8,35 @@ import discord
 from services.shop_service import ShopItem
 
 
-class ShopItemSelect(discord.ui.Select["ShopView"]):
-    def __init__(self, shop_view: "ShopView") -> None:
+CATEGORY_STYLES = {
+    'Косметика': ('🎨', discord.Color.blurple()),
+    'Бонусы': ('⚡', discord.Color.gold()),
+    'Кейсы': ('🎁', discord.Color.orange()),
+    'Роли': ('👑', discord.Color.fuchsia()),
+    'Подписка': ('💠', discord.Color.teal()),
+    'Прочее': ('🧩', discord.Color.light_grey()),
+    'Чёрный рынок': ('🕶️', discord.Color.dark_purple()),
+}
+
+EFFECT_LABELS = {
+    'profile_theme': 'Тема профиля',
+    'profile_frame': 'Рамка профиля',
+    'double_win_armed': 'Бустер x2',
+    'vip_slot_armed': 'VIP слот',
+    'vip_subscription': 'VIP подписка',
+}
+
+EFFECT_VALUES = {
+    'color': 'Цветной профиль',
+    'custom_bg': 'Кастомный фон',
+    'vip': 'VIP рамка',
+    'shadow': 'Теневая рамка',
+    'active': 'Активно',
+}
+
+
+class ShopItemSelect(discord.ui.Select['ShopView']):
+    def __init__(self, shop_view: 'ShopView') -> None:
         self.shop_view = shop_view
         options = self._build_options()
         placeholder = 'Выберите предмет'
@@ -19,7 +46,7 @@ class ShopItemSelect(discord.ui.Select["ShopView"]):
                 discord.SelectOption(
                     label='Пусто',
                     value='__empty__',
-                    description='Здесь пока нет доступных предметов',
+                    description='Сейчас здесь нет доступных предметов',
                 )
             ]
             placeholder = 'Сейчас выбирать нечего'
@@ -37,11 +64,12 @@ class ShopItemSelect(discord.ui.Select["ShopView"]):
         options: list[discord.SelectOption] = []
         if self.shop_view.mode in {'catalog', 'blackmarket'}:
             for item in self.shop_view.get_catalog_items_for_mode():
+                emoji = self.shop_view.get_category_emoji(item.category)
                 options.append(
                     discord.SelectOption(
                         label=item.name[:100],
                         value=item.key,
-                        description=f'{item.price} монет',
+                        description=f'{emoji} {item.price} монет',
                     )
                 )
         elif self.shop_view.mode == 'inventory':
@@ -49,11 +77,14 @@ class ShopItemSelect(discord.ui.Select["ShopView"]):
             for item_key, qty in inventory.items():
                 item = self.shop_view.shop_service.get_item(item_key)
                 item_name = item.name if item is not None else item_key
+                description = f'Количество: {qty}'
+                if item is not None:
+                    description = f'{self.shop_view.get_category_emoji(item.category)} {description}'
                 options.append(
                     discord.SelectOption(
                         label=item_name[:100],
                         value=item_key,
-                        description=f'Количество: {qty}',
+                        description=description[:100],
                     )
                 )
         return options
@@ -117,6 +148,24 @@ class ShopView(discord.ui.View):
             items.extend(group)
         return items
 
+    def get_category_emoji(self, category: str) -> str:
+        return CATEGORY_STYLES.get(category, ('🛍️', discord.Color.blurple()))[0]
+
+    def format_item_line(self, item: ShopItem) -> str:
+        return f"{self.get_category_emoji(item.category)} **{item.name}** • {item.price} монет\n{item.description}"
+
+    def format_effect(self, effect_key: str, effect_data: dict[str, Any]) -> str:
+        label = EFFECT_LABELS.get(effect_key, effect_key.replace('_', ' ').title())
+        raw_value = effect_data.get('value')
+        value = EFFECT_VALUES.get(str(raw_value), str(raw_value))
+        expires_text = self.format_ts(effect_data.get('expires_ts'))
+        return f'• **{label}**: {value} • до {expires_text}'
+
+    def apply_embed_style(self, embed: discord.Embed, color: discord.Color) -> discord.Embed:
+        embed.color = color
+        embed.set_footer(text='Магазин сервера • выбор и действия доступны через кнопки ниже')
+        return embed
+
     def refresh_components(self) -> None:
         self.clear_items()
         self.add_item(self.catalog_button)
@@ -142,51 +191,52 @@ class ShopView(discord.ui.View):
     def build_main_embed(self) -> discord.Embed:
         profile = self.profile_service.get_profile(self.user_id)
         embed = discord.Embed(
-            title='Магазин сервера',
+            title='🛍️ Магазин сервера',
             description=(
-                'Открой нужный раздел кнопками ниже.\n'
-                f'Твой баланс: **{profile.balance}** монет'
+                'Добро пожаловать в магазин. Здесь можно купить косметику, бонусы, роли и особые редкие товары.\n\n'
+                f'**Текущий баланс:** {profile.balance} монет'
             ),
             color=discord.Color.blurple(),
         )
         embed.add_field(
-            name='Разделы',
+            name='✨ Что доступно',
             value=(
-                'Каталог: покупка предметов.\n'
-                'Инвентарь: использование и отключение предметов.\n'
-                'Чёрный рынок: редкий товар дня.'
+                '🎨 Каталог — все обычные товары магазина\n'
+                '🎒 Инвентарь — использование купленных предметов\n'
+                '🕶️ Чёрный рынок — редкое предложение дня'
             ),
             inline=False,
         )
-        return embed
+        embed.add_field(
+            name='💡 Подсказка',
+            value='Сначала открой раздел, затем выбери предмет из списка и используй кнопку действия.',
+            inline=False,
+        )
+        return self.apply_embed_style(embed, discord.Color.blurple())
 
     def build_catalog_embed(self) -> discord.Embed:
         profile = self.profile_service.get_profile(self.user_id)
         embed = discord.Embed(
-            title='Каталог магазина',
-            description=f'Выберите предмет в списке ниже.\nБаланс: **{profile.balance}** монет',
+            title='🎨 Каталог магазина',
+            description=(
+                'Выберите предмет в меню ниже. В каталоге показаны только названия, цена и описание без технических кодов.\n\n'
+                f'**Баланс:** {profile.balance} монет'
+            ),
             color=discord.Color.blurple(),
         )
         for category, items in self.shop_service.get_catalog().items():
-            lines = [
-                f'`{item.key}` • **{item.name}** • {item.price} монет'
-                for item in items
-            ]
-            embed.add_field(name=category, value='\n'.join(lines), inline=False)
+            emoji = self.get_category_emoji(category)
+            lines = [f'{emoji} **{item.name}** • {item.price} монет' for item in items]
+            embed.add_field(name=f'{emoji} {category}', value='\n'.join(lines), inline=False)
 
         selected = self.get_selected_item()
         if selected is not None:
             embed.add_field(
-                name='Выбранный предмет',
-                value=(
-                    f'**{selected.name}**\n'
-                    f'Ключ: `{selected.key}`\n'
-                    f'Цена: **{selected.price}** монет\n'
-                    f'{selected.description}'
-                ),
+                name='🧾 Выбранный предмет',
+                value=self.format_item_line(selected),
                 inline=False,
             )
-        return embed
+        return self.apply_embed_style(embed, discord.Color.blurple())
 
     def build_inventory_embed(self) -> discord.Embed:
         inventory = self.shop_service.get_inventory(self.user_id)
@@ -195,8 +245,8 @@ class ShopView(discord.ui.View):
         active_cosmetics = self.shop_service.get_active_cosmetics(self.user_id)
 
         embed = discord.Embed(
-            title='Твой инвентарь',
-            description=f'Баланс: **{profile.balance}** монет',
+            title='🎒 Твой инвентарь',
+            description=f'Здесь лежат купленные предметы и активные эффекты.\n\n**Баланс:** {profile.balance} монет',
             color=discord.Color.green(),
         )
 
@@ -204,75 +254,63 @@ class ShopView(discord.ui.View):
             lines: list[str] = []
             for item_key, qty in inventory.items():
                 item = self.shop_service.get_item(item_key)
-                item_name = item.name if item is not None else item_key
+                item_name = item.name if item is not None else 'Неизвестный предмет'
+                emoji = self.get_category_emoji(item.category) if item is not None else '📦'
                 markers: list[str] = []
                 if item_key == active_cosmetics.get('theme'):
                     markers.append('активный фон')
                 if item_key == active_cosmetics.get('frame'):
                     markers.append('активная рамка')
                 suffix = f" • {' / '.join(markers)}" if markers else ''
-                lines.append(f'• **{item_name}** x{qty}{suffix}')
-            embed.add_field(name='Предметы', value='\n'.join(lines), inline=False)
+                lines.append(f'{emoji} **{item_name}** x{qty}{suffix}')
+            embed.add_field(name='📦 Предметы', value='\n'.join(lines), inline=False)
         else:
-            embed.add_field(name='Предметы', value='Инвентарь пуст.', inline=False)
+            embed.add_field(name='📦 Предметы', value='Инвентарь пока пуст.', inline=False)
 
         if effects:
-            effect_lines = []
-            for effect_key, effect_data in effects.items():
-                effect_lines.append(
-                    f"• `{effect_key}` -> **{effect_data.get('value')}** до **{self.format_ts(effect_data.get('expires_ts'))}**"
-                )
-            embed.add_field(name='Активные эффекты', value='\n'.join(effect_lines), inline=False)
+            effect_lines = [self.format_effect(effect_key, effect_data) for effect_key, effect_data in effects.items()]
+            embed.add_field(name='✨ Активные эффекты', value='\n'.join(effect_lines), inline=False)
 
         selected = self.get_selected_item()
         if selected is not None:
             embed.add_field(
-                name='Выбранный предмет',
-                value=(
-                    f'**{selected.name}**\n'
-                    f'Ключ: `{selected.key}`\n'
-                    f'{selected.description}'
-                ),
+                name='🧾 Выбранный предмет',
+                value=self.format_item_line(selected),
                 inline=False,
             )
-        return embed
+        return self.apply_embed_style(embed, discord.Color.green())
 
     def build_black_market_embed(self) -> discord.Embed:
         profile = self.profile_service.get_profile(self.user_id)
         item = self.shop_service.get_black_market_offer()
-
         embed = discord.Embed(
-            title='Чёрный рынок',
+            title='🕶️ Чёрный рынок',
             description=(
-                'Редкий товар дня. Ассортимент меняется раз в 24 часа.\n'
-                f'Баланс: **{profile.balance}** монет'
+                'Редкий товар дня. Предложение обновляется раз в 24 часа и может исчезнуть до следующего цикла.\n\n'
+                f'**Баланс:** {profile.balance} монет'
             ),
             color=discord.Color.dark_purple(),
         )
-        embed.add_field(
-            name=item.name,
-            value=(
-                f'Ключ: `{item.key}`\n'
-                f'Цена: **{item.price}** монет\n'
-                f'{item.description}'
-            ),
-            inline=False,
-        )
+        embed.add_field(name='🔥 Сегодняшнее предложение', value=self.format_item_line(item), inline=False)
+
         selected = self.get_selected_item()
         if selected is not None:
             embed.add_field(
-                name='Выбранный предмет',
-                value=f'Готово к покупке: **{selected.name}**',
+                name='🧾 Выбранный предмет',
+                value=f'Готово к покупке: **{selected.name}** за **{selected.price}** монет',
                 inline=False,
             )
-        return embed
+        return self.apply_embed_style(embed, discord.Color.dark_purple())
 
     def build_result_embed(self, title: str, message: str, success: bool) -> discord.Embed:
-        return discord.Embed(
-            title=title,
+        color = discord.Color.green() if success else discord.Color.red()
+        icon = '✅' if success else '❌'
+        embed = discord.Embed(
+            title=f'{icon} {title}',
             description=message,
-            color=discord.Color.green() if success else discord.Color.red(),
+            color=color,
         )
+        return self.apply_embed_style(embed, color)
 
     def build_current_embed(self) -> discord.Embed:
         if self.mode == 'catalog':
@@ -298,34 +336,34 @@ class ShopView(discord.ui.View):
         if success:
             purchased_item = details.get('item')
             if purchased_item is not None:
-                embed.add_field(name='Предмет', value=purchased_item.name, inline=False)
-                embed.add_field(name='Категория', value=purchased_item.category, inline=True)
-                embed.add_field(name='Цена', value=f'{purchased_item.price} монет', inline=True)
+                embed.add_field(name='🧾 Предмет', value=purchased_item.name, inline=False)
+                embed.add_field(name='📂 Категория', value=purchased_item.category, inline=True)
+                embed.add_field(name='💰 Цена', value=f'{purchased_item.price} монет', inline=True)
 
             role_id = details.get('role_id')
             if role_id and interaction.guild is not None:
                 role = interaction.guild.get_role(int(role_id))
                 member = interaction.guild.get_member(self.user_id)
                 if role is None:
-                    embed.add_field(name='Роль', value=f'ID {role_id} не найден на сервере.', inline=False)
+                    embed.add_field(name='👑 Роль', value='Роль для покупки не найдена на сервере.', inline=False)
                 elif member is None:
-                    embed.add_field(name='Роль', value='Пользователь не найден на сервере.', inline=False)
+                    embed.add_field(name='👤 Роль', value='Пользователь не найден на сервере.', inline=False)
                 else:
                     try:
                         await member.add_roles(role, reason='Покупка роли в /shop')
-                        embed.add_field(name='Роль', value=f'Выдана роль {role.mention}', inline=False)
+                        embed.add_field(name='👑 Роль', value=f'Выдана роль {role.mention}', inline=False)
                     except discord.Forbidden:
-                        embed.add_field(name='Роль', value='У бота нет прав на выдачу роли.', inline=False)
+                        embed.add_field(name='👑 Роль', value='У бота нет прав на выдачу роли.', inline=False)
                     except discord.HTTPException:
-                        embed.add_field(name='Роль', value='Discord API не дал выдать роль.', inline=False)
+                        embed.add_field(name='👑 Роль', value='Discord API не дал выдать роль.', inline=False)
 
             expires_ts = details.get('expires_ts')
             if expires_ts:
-                embed.add_field(name='Срок действия', value=self.format_ts(int(expires_ts)), inline=False)
+                embed.add_field(name='⏳ Срок действия', value=self.format_ts(int(expires_ts)), inline=False)
 
             reward_text = details.get('reward_text')
             if reward_text:
-                embed.add_field(name='Награда', value=str(reward_text), inline=False)
+                embed.add_field(name='🎁 Награда', value=str(reward_text), inline=False)
 
         await interaction.response.edit_message(embed=embed, view=self)
 
