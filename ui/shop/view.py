@@ -1,0 +1,416 @@
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any, cast
+
+import discord
+
+from services.shop_service import ShopItem
+
+
+class ShopItemSelect(discord.ui.Select["ShopView"]):
+    def __init__(self, shop_view: "ShopView") -> None:
+        self.shop_view = shop_view
+        options = self._build_options()
+        placeholder = 'Выберите предмет'
+
+        if not options:
+            options = [
+                discord.SelectOption(
+                    label='Пусто',
+                    value='__empty__',
+                    description='Здесь пока нет доступных предметов',
+                )
+            ]
+            placeholder = 'Сейчас выбирать нечего'
+
+        super().__init__(
+            placeholder=placeholder,
+            min_values=1,
+            max_values=1,
+            options=options[:25],
+            row=1,
+            disabled=options[0].value == '__empty__',
+        )
+
+    def _build_options(self) -> list[discord.SelectOption]:
+        options: list[discord.SelectOption] = []
+        if self.shop_view.mode in {'catalog', 'blackmarket'}:
+            for item in self.shop_view.get_catalog_items_for_mode():
+                options.append(
+                    discord.SelectOption(
+                        label=item.name[:100],
+                        value=item.key,
+                        description=f'{item.price} монет',
+                    )
+                )
+        elif self.shop_view.mode == 'inventory':
+            inventory = self.shop_view.shop_service.get_inventory(self.shop_view.user_id)
+            for item_key, qty in inventory.items():
+                item = self.shop_view.shop_service.get_item(item_key)
+                item_name = item.name if item is not None else item_key
+                options.append(
+                    discord.SelectOption(
+                        label=item_name[:100],
+                        value=item_key,
+                        description=f'Количество: {qty}',
+                    )
+                )
+        return options
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await self.shop_view.ensure_owner(interaction):
+            return
+        value = self.values[0]
+        if value == '__empty__':
+            await interaction.response.defer()
+            return
+
+        self.shop_view.selected_item_key = value
+        self.shop_view.refresh_components()
+        await interaction.response.edit_message(
+            embed=self.shop_view.build_current_embed(),
+            view=self.shop_view,
+        )
+
+
+class ShopView(discord.ui.View):
+    def __init__(self, cog: Any, user_id: int) -> None:
+        super().__init__(timeout=600)
+        self.cog = cog
+        self.user_id = user_id
+        self.profile_service = cast(Any, cog).profile_service
+        self.shop_service = cast(Any, cog).shop_service
+        self.mode = 'main'
+        self.selected_item_key: str | None = None
+        self.refresh_components()
+
+    async def ensure_owner(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title='Ошибка',
+                    description='Эта панель магазина открыта для другого пользователя.',
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    def format_ts(self, ts: int | None) -> str:
+        if ts is None:
+            return 'бессрочно'
+        return dt.datetime.fromtimestamp(ts).strftime('%d.%m.%Y %H:%M')
+
+    def get_selected_item(self) -> ShopItem | None:
+        if self.selected_item_key is None:
+            return None
+        return self.shop_service.get_item(self.selected_item_key)
+
+    def get_catalog_items_for_mode(self) -> list[ShopItem]:
+        if self.mode == 'blackmarket':
+            return [self.shop_service.get_black_market_offer()]
+
+        items: list[ShopItem] = []
+        for group in self.shop_service.get_catalog().values():
+            items.extend(group)
+        return items
+
+    def refresh_components(self) -> None:
+        self.clear_items()
+        self.add_item(self.catalog_button)
+        self.add_item(self.inventory_button)
+        self.add_item(self.black_market_button)
+        self.add_item(self.back_button)
+
+        if self.mode in {'catalog', 'inventory', 'blackmarket'}:
+            self.add_item(ShopItemSelect(self))
+
+        if self.mode in {'catalog', 'blackmarket'}:
+            self.add_item(self.buy_button)
+        if self.mode == 'inventory':
+            self.add_item(self.use_button)
+            self.add_item(self.deactivate_button)
+
+        selected = self.get_selected_item()
+        self.buy_button.disabled = self.mode not in {'catalog', 'blackmarket'} or selected is None
+        self.use_button.disabled = self.mode != 'inventory' or selected is None
+        self.deactivate_button.disabled = self.mode != 'inventory' or selected is None
+        self.back_button.disabled = self.mode == 'main'
+
+    def build_main_embed(self) -> discord.Embed:
+        profile = self.profile_service.get_profile(self.user_id)
+        embed = discord.Embed(
+            title='Магазин сервера',
+            description=(
+                'Открой нужный раздел кнопками ниже.\n'
+                f'Твой баланс: **{profile.balance}** монет'
+            ),
+            color=discord.Color.blurple(),
+        )
+        embed.add_field(
+            name='Разделы',
+            value=(
+                'Каталог: покупка предметов.\n'
+                'Инвентарь: использование и отключение предметов.\n'
+                'Чёрный рынок: редкий товар дня.'
+            ),
+            inline=False,
+        )
+        return embed
+
+    def build_catalog_embed(self) -> discord.Embed:
+        profile = self.profile_service.get_profile(self.user_id)
+        embed = discord.Embed(
+            title='Каталог магазина',
+            description=f'Выберите предмет в списке ниже.\nБаланс: **{profile.balance}** монет',
+            color=discord.Color.blurple(),
+        )
+        for category, items in self.shop_service.get_catalog().items():
+            lines = [
+                f'`{item.key}` • **{item.name}** • {item.price} монет'
+                for item in items
+            ]
+            embed.add_field(name=category, value='\n'.join(lines), inline=False)
+
+        selected = self.get_selected_item()
+        if selected is not None:
+            embed.add_field(
+                name='Выбранный предмет',
+                value=(
+                    f'**{selected.name}**\n'
+                    f'Ключ: `{selected.key}`\n'
+                    f'Цена: **{selected.price}** монет\n'
+                    f'{selected.description}'
+                ),
+                inline=False,
+            )
+        return embed
+
+    def build_inventory_embed(self) -> discord.Embed:
+        inventory = self.shop_service.get_inventory(self.user_id)
+        effects = self.shop_service.list_effects(self.user_id)
+        profile = self.profile_service.get_profile(self.user_id)
+        active_cosmetics = self.shop_service.get_active_cosmetics(self.user_id)
+
+        embed = discord.Embed(
+            title='Твой инвентарь',
+            description=f'Баланс: **{profile.balance}** монет',
+            color=discord.Color.green(),
+        )
+
+        if inventory:
+            lines: list[str] = []
+            for item_key, qty in inventory.items():
+                item = self.shop_service.get_item(item_key)
+                item_name = item.name if item is not None else item_key
+                markers: list[str] = []
+                if item_key == active_cosmetics.get('theme'):
+                    markers.append('активный фон')
+                if item_key == active_cosmetics.get('frame'):
+                    markers.append('активная рамка')
+                suffix = f" • {' / '.join(markers)}" if markers else ''
+                lines.append(f'• **{item_name}** x{qty}{suffix}')
+            embed.add_field(name='Предметы', value='\n'.join(lines), inline=False)
+        else:
+            embed.add_field(name='Предметы', value='Инвентарь пуст.', inline=False)
+
+        if effects:
+            effect_lines = []
+            for effect_key, effect_data in effects.items():
+                effect_lines.append(
+                    f"• `{effect_key}` -> **{effect_data.get('value')}** до **{self.format_ts(effect_data.get('expires_ts'))}**"
+                )
+            embed.add_field(name='Активные эффекты', value='\n'.join(effect_lines), inline=False)
+
+        selected = self.get_selected_item()
+        if selected is not None:
+            embed.add_field(
+                name='Выбранный предмет',
+                value=(
+                    f'**{selected.name}**\n'
+                    f'Ключ: `{selected.key}`\n'
+                    f'{selected.description}'
+                ),
+                inline=False,
+            )
+        return embed
+
+    def build_black_market_embed(self) -> discord.Embed:
+        profile = self.profile_service.get_profile(self.user_id)
+        item = self.shop_service.get_black_market_offer()
+
+        embed = discord.Embed(
+            title='Чёрный рынок',
+            description=(
+                'Редкий товар дня. Ассортимент меняется раз в 24 часа.\n'
+                f'Баланс: **{profile.balance}** монет'
+            ),
+            color=discord.Color.dark_purple(),
+        )
+        embed.add_field(
+            name=item.name,
+            value=(
+                f'Ключ: `{item.key}`\n'
+                f'Цена: **{item.price}** монет\n'
+                f'{item.description}'
+            ),
+            inline=False,
+        )
+        selected = self.get_selected_item()
+        if selected is not None:
+            embed.add_field(
+                name='Выбранный предмет',
+                value=f'Готово к покупке: **{selected.name}**',
+                inline=False,
+            )
+        return embed
+
+    def build_result_embed(self, title: str, message: str, success: bool) -> discord.Embed:
+        return discord.Embed(
+            title=title,
+            description=message,
+            color=discord.Color.green() if success else discord.Color.red(),
+        )
+
+    def build_current_embed(self) -> discord.Embed:
+        if self.mode == 'catalog':
+            return self.build_catalog_embed()
+        if self.mode == 'inventory':
+            return self.build_inventory_embed()
+        if self.mode == 'blackmarket':
+            return self.build_black_market_embed()
+        return self.build_main_embed()
+
+    async def handle_buy(self, interaction: discord.Interaction) -> None:
+        item = self.get_selected_item()
+        if item is None:
+            await interaction.response.send_message(
+                embed=self.build_result_embed('Покупка', 'Сначала выбери предмет.', False),
+                ephemeral=True,
+            )
+            return
+
+        success, message, details = self.shop_service.buy_item(self.user_id, item.key)
+        embed = self.build_result_embed('Покупка', message, success)
+
+        if success:
+            purchased_item = details.get('item')
+            if purchased_item is not None:
+                embed.add_field(name='Предмет', value=purchased_item.name, inline=False)
+                embed.add_field(name='Категория', value=purchased_item.category, inline=True)
+                embed.add_field(name='Цена', value=f'{purchased_item.price} монет', inline=True)
+
+            role_id = details.get('role_id')
+            if role_id and interaction.guild is not None:
+                role = interaction.guild.get_role(int(role_id))
+                member = interaction.guild.get_member(self.user_id)
+                if role is None:
+                    embed.add_field(name='Роль', value=f'ID {role_id} не найден на сервере.', inline=False)
+                elif member is None:
+                    embed.add_field(name='Роль', value='Пользователь не найден на сервере.', inline=False)
+                else:
+                    try:
+                        await member.add_roles(role, reason='Покупка роли в /shop')
+                        embed.add_field(name='Роль', value=f'Выдана роль {role.mention}', inline=False)
+                    except discord.Forbidden:
+                        embed.add_field(name='Роль', value='У бота нет прав на выдачу роли.', inline=False)
+                    except discord.HTTPException:
+                        embed.add_field(name='Роль', value='Discord API не дал выдать роль.', inline=False)
+
+            expires_ts = details.get('expires_ts')
+            if expires_ts:
+                embed.add_field(name='Срок действия', value=self.format_ts(int(expires_ts)), inline=False)
+
+            reward_text = details.get('reward_text')
+            if reward_text:
+                embed.add_field(name='Награда', value=str(reward_text), inline=False)
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def handle_use(self, interaction: discord.Interaction) -> None:
+        item = self.get_selected_item()
+        if item is None:
+            await interaction.response.send_message(
+                embed=self.build_result_embed('Использование', 'Сначала выбери предмет.', False),
+                ephemeral=True,
+            )
+            return
+
+        success, message = self.shop_service.use_item(self.user_id, item.key)
+        self.refresh_components()
+        await interaction.response.edit_message(
+            embed=self.build_result_embed('Использование предмета', message, success),
+            view=self,
+        )
+
+    async def handle_deactivate(self, interaction: discord.Interaction) -> None:
+        item = self.get_selected_item()
+        if item is None:
+            await interaction.response.send_message(
+                embed=self.build_result_embed('Отключение', 'Сначала выбери предмет.', False),
+                ephemeral=True,
+            )
+            return
+
+        success, message = self.shop_service.deactivate_item(self.user_id, item.key)
+        self.refresh_components()
+        await interaction.response.edit_message(
+            embed=self.build_result_embed('Отключение предмета', message, success),
+            view=self,
+        )
+
+    @discord.ui.button(label='Каталог', style=discord.ButtonStyle.primary, row=0)
+    async def catalog_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not await self.ensure_owner(interaction):
+            return
+        self.mode = 'catalog'
+        self.selected_item_key = None
+        self.refresh_components()
+        await interaction.response.edit_message(embed=self.build_current_embed(), view=self)
+
+    @discord.ui.button(label='Инвентарь', style=discord.ButtonStyle.success, row=0)
+    async def inventory_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not await self.ensure_owner(interaction):
+            return
+        self.mode = 'inventory'
+        self.selected_item_key = None
+        self.refresh_components()
+        await interaction.response.edit_message(embed=self.build_current_embed(), view=self)
+
+    @discord.ui.button(label='Чёрный рынок', style=discord.ButtonStyle.danger, row=0)
+    async def black_market_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not await self.ensure_owner(interaction):
+            return
+        self.mode = 'blackmarket'
+        self.selected_item_key = self.shop_service.get_black_market_offer().key
+        self.refresh_components()
+        await interaction.response.edit_message(embed=self.build_current_embed(), view=self)
+
+    @discord.ui.button(label='Назад', style=discord.ButtonStyle.secondary, row=0)
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not await self.ensure_owner(interaction):
+            return
+        self.mode = 'main'
+        self.selected_item_key = None
+        self.refresh_components()
+        await interaction.response.edit_message(embed=self.build_current_embed(), view=self)
+
+    @discord.ui.button(label='Купить', style=discord.ButtonStyle.primary, row=2)
+    async def buy_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not await self.ensure_owner(interaction):
+            return
+        await self.handle_buy(interaction)
+
+    @discord.ui.button(label='Использовать', style=discord.ButtonStyle.success, row=2)
+    async def use_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not await self.ensure_owner(interaction):
+            return
+        await self.handle_use(interaction)
+
+    @discord.ui.button(label='Отключить', style=discord.ButtonStyle.secondary, row=2)
+    async def deactivate_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not await self.ensure_owner(interaction):
+            return
+        await self.handle_deactivate(interaction)
