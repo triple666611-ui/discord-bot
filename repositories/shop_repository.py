@@ -10,6 +10,8 @@ from psycopg2.pool import SimpleConnectionPool
 class ShopRepository:
     def __init__(self, pool: SimpleConnectionPool):
         self.pool = pool
+        self.has_effect_value_column = False
+        self.has_value_column = False
         self._setup_db()
 
     @contextmanager
@@ -19,6 +21,18 @@ class ShopRepository:
             yield conn
         finally:
             self.pool.putconn(conn)
+
+    def _detect_effect_columns(self, cur) -> None:
+        cur.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'shop_effects'
+            """
+        )
+        columns = {str(row[0]) for row in cur.fetchall()}
+        self.has_effect_value_column = 'effect_value' in columns
+        self.has_value_column = 'value' in columns
 
     def _setup_db(self) -> None:
         with self._get_conn() as conn:
@@ -63,6 +77,18 @@ class ShopRepository:
                     ADD COLUMN IF NOT EXISTS updated_ts BIGINT NOT NULL DEFAULT 0
                     """
                 )
+
+                self._detect_effect_columns(cur)
+
+                if self.has_effect_value_column and self.has_value_column:
+                    cur.execute(
+                        """
+                        UPDATE shop_effects
+                        SET value = effect_value
+                        WHERE value IS NULL AND effect_value IS NOT NULL
+                        """
+                    )
+
                 cur.execute(
                     """
                     UPDATE shop_effects
@@ -72,6 +98,13 @@ class ShopRepository:
                     (int(time.time()),),
                 )
             conn.commit()
+
+    def _effect_value_expr(self) -> str:
+        if self.has_effect_value_column and self.has_value_column:
+            return 'COALESCE(value, effect_value)'
+        if self.has_effect_value_column:
+            return 'effect_value'
+        return 'value'
 
     def get_inventory(self, user_id: int) -> dict[str, int]:
         with self._get_conn() as conn:
@@ -150,6 +183,7 @@ class ShopRepository:
 
     def list_effects(self, user_id: int) -> dict[str, dict[str, Any]]:
         now_ts = int(time.time())
+        value_expr = self._effect_value_expr()
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -162,8 +196,8 @@ class ShopRepository:
                     (user_id, now_ts),
                 )
                 cur.execute(
-                    """
-                    SELECT effect_key, value, expires_ts, updated_ts
+                    f"""
+                    SELECT effect_key, {value_expr} AS effect_value, expires_ts, updated_ts
                     FROM shop_effects
                     WHERE user_id = %s
                     ORDER BY effect_key
@@ -184,11 +218,12 @@ class ShopRepository:
 
     def get_effect(self, user_id: int, effect_key: str) -> dict[str, Any] | None:
         now_ts = int(time.time())
+        value_expr = self._effect_value_expr()
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    SELECT value, expires_ts, updated_ts
+                    f"""
+                    SELECT {value_expr} AS effect_value, expires_ts, updated_ts
                     FROM shop_effects
                     WHERE user_id = %s AND effect_key = %s
                     """,
@@ -226,18 +261,33 @@ class ShopRepository:
         now_ts = int(time.time())
         with self._get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO shop_effects (user_id, effect_key, value, expires_ts, updated_ts)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (user_id, effect_key)
-                    DO UPDATE SET
-                        value = EXCLUDED.value,
-                        expires_ts = EXCLUDED.expires_ts,
-                        updated_ts = EXCLUDED.updated_ts
-                    """,
-                    (user_id, effect_key, value, expires_ts, now_ts),
-                )
+                if self.has_effect_value_column:
+                    cur.execute(
+                        """
+                        INSERT INTO shop_effects (user_id, effect_key, value, effect_value, expires_ts, updated_ts)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (user_id, effect_key)
+                        DO UPDATE SET
+                            value = EXCLUDED.value,
+                            effect_value = EXCLUDED.effect_value,
+                            expires_ts = EXCLUDED.expires_ts,
+                            updated_ts = EXCLUDED.updated_ts
+                        """,
+                        (user_id, effect_key, value, value, expires_ts, now_ts),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO shop_effects (user_id, effect_key, value, expires_ts, updated_ts)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (user_id, effect_key)
+                        DO UPDATE SET
+                            value = EXCLUDED.value,
+                            expires_ts = EXCLUDED.expires_ts,
+                            updated_ts = EXCLUDED.updated_ts
+                        """,
+                        (user_id, effect_key, value, expires_ts, now_ts),
+                    )
             conn.commit()
 
     def extend_effect(
@@ -265,18 +315,33 @@ class ShopRepository:
                 else:
                     new_expires_ts = max(now_ts, int(row[0])) + duration_seconds
 
-                cur.execute(
-                    """
-                    INSERT INTO shop_effects (user_id, effect_key, value, expires_ts, updated_ts)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (user_id, effect_key)
-                    DO UPDATE SET
-                        value = EXCLUDED.value,
-                        expires_ts = EXCLUDED.expires_ts,
-                        updated_ts = EXCLUDED.updated_ts
-                    """,
-                    (user_id, effect_key, value, new_expires_ts, now_ts),
-                )
+                if self.has_effect_value_column:
+                    cur.execute(
+                        """
+                        INSERT INTO shop_effects (user_id, effect_key, value, effect_value, expires_ts, updated_ts)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (user_id, effect_key)
+                        DO UPDATE SET
+                            value = EXCLUDED.value,
+                            effect_value = EXCLUDED.effect_value,
+                            expires_ts = EXCLUDED.expires_ts,
+                            updated_ts = EXCLUDED.updated_ts
+                        """,
+                        (user_id, effect_key, value, value, new_expires_ts, now_ts),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO shop_effects (user_id, effect_key, value, expires_ts, updated_ts)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (user_id, effect_key)
+                        DO UPDATE SET
+                            value = EXCLUDED.value,
+                            expires_ts = EXCLUDED.expires_ts,
+                            updated_ts = EXCLUDED.updated_ts
+                        """,
+                        (user_id, effect_key, value, new_expires_ts, now_ts),
+                    )
             conn.commit()
         return new_expires_ts
 
