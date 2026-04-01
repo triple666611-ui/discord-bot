@@ -26,7 +26,7 @@ async def fetch_avatar(url: str):
             data = await resp.read()
 
     avatar = Image.open(io.BytesIO(data)).convert("RGBA")
-    avatar = avatar.resize((200, 200))
+    avatar = avatar.resize((180, 180))
     return avatar
 
 
@@ -58,6 +58,33 @@ def normalize_frame(frame):
     return None
 
 
+def mix_color(start, end, factor: float):
+    factor = max(0.0, min(1.0, factor))
+    return tuple(int(start[i] * (1 - factor) + end[i] * factor) for i in range(3))
+
+
+def draw_vertical_gradient(base, top_color, bottom_color):
+    gradient = Image.new("RGBA", (WIDTH, HEIGHT))
+    draw = ImageDraw.Draw(gradient)
+    for y in range(HEIGHT):
+        mix = y / max(HEIGHT - 1, 1)
+        color = mix_color(top_color, bottom_color, mix)
+        draw.line((0, y, WIDTH, y), fill=(*color, 255))
+    base.alpha_composite(gradient)
+
+
+def draw_glow(base, box, color, blur_radius: int, alpha: int):
+    glow = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(glow)
+    draw.ellipse(box, fill=(*color, alpha))
+    glow = glow.filter(ImageFilter.GaussianBlur(blur_radius))
+    base.alpha_composite(glow)
+
+
+def rounded_panel(draw, box, radius: int, fill, outline=None, width: int = 1):
+    draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
+
+
 async def render_profile_card(member, profile):
     username = member.display_name
     user_id = member.id
@@ -73,176 +100,200 @@ async def render_profile_card(member, profile):
 
     avatar_url = member.display_avatar.url
 
-    bg_color = (9, 12, 25)
-    if theme == "color_profile":
-        bg_color = (20, 18, 48)
-    elif theme == "custom_bg":
-        bg_color = (14, 32, 36)
-
-    base = Image.new("RGBA", (WIDTH, HEIGHT), bg_color)
-    draw = ImageDraw.Draw(base)
-
-    gradient = Image.new("RGBA", (WIDTH, HEIGHT))
-    gdraw = ImageDraw.Draw(gradient)
-
-    for y in range(HEIGHT):
-        if theme == "color_profile":
-            r = 40 + int(y * 0.05)
-            g = 18 + int(y * 0.03)
-            b = 70 + int(y * 0.04)
-        elif theme == "custom_bg":
-            r = 6 + int(y * 0.01)
-            g = 35 + int(y * 0.05)
-            b = 40 + int(y * 0.03)
-        else:
-            r = 9
-            g = 12 + int(y * 0.02)
-            b = 25 + int(y * 0.05)
-
-        r = max(0, min(255, r))
-        g = max(0, min(255, g))
-        b = max(0, min(255, b))
-        gdraw.line((0, y, WIDTH, y), fill=(r, g, b))
-
-    base = Image.alpha_composite(base, gradient)
-
-    card = Image.new("RGBA", (WIDTH, HEIGHT))
-    cdraw = ImageDraw.Draw(card)
-
-    outline_color = (80, 100, 255, 80)
-    ring_color = (70, 120, 255)
-    card_fill = (15, 20, 40, 220)
+    theme_palette = {
+        None: {
+            "bg_top": (10, 18, 20),
+            "bg_bottom": (14, 52, 51),
+            "accent": (82, 220, 180),
+            "accent_soft": (145, 212, 195),
+            "panel": (10, 22, 24, 220),
+            "panel_fill": (20, 50, 48, 255),
+            "panel_stroke": (82, 220, 180, 90),
+            "primary_text": (238, 255, 250),
+            "secondary_text": (145, 212, 195),
+            "muted_text": (116, 170, 158),
+            "progress_bg": (19, 46, 45, 255),
+            "progress_fill": (82, 220, 180, 255),
+        },
+        "color_profile": {
+            "bg_top": (14, 14, 36),
+            "bg_bottom": (53, 28, 92),
+            "accent": (168, 113, 255),
+            "accent_soft": (207, 173, 255),
+            "panel": (19, 12, 42, 220),
+            "panel_fill": (40, 24, 72, 255),
+            "panel_stroke": (180, 130, 255, 100),
+            "primary_text": (248, 243, 255),
+            "secondary_text": (207, 173, 255),
+            "muted_text": (170, 145, 205),
+            "progress_bg": (37, 20, 66, 255),
+            "progress_fill": (186, 108, 255, 255),
+        },
+        "custom_bg": {
+            "bg_top": (7, 28, 31),
+            "bg_bottom": (12, 69, 64),
+            "accent": (107, 227, 197),
+            "accent_soft": (173, 240, 223),
+            "panel": (8, 23, 24, 220),
+            "panel_fill": (19, 54, 50, 255),
+            "panel_stroke": (107, 227, 197, 100),
+            "primary_text": (238, 255, 250),
+            "secondary_text": (173, 240, 223),
+            "muted_text": (122, 188, 175),
+            "progress_bg": (15, 41, 40, 255),
+            "progress_fill": (107, 227, 197, 255),
+        },
+    }
+    palette = theme_palette[theme]
 
     if frame == "vip_frame":
-        outline_color = (255, 210, 90, 180)
-        ring_color = (255, 210, 90)
+        palette = {
+            **palette,
+            "accent": (246, 201, 117),
+            "accent_soft": (240, 210, 150),
+            "panel_stroke": (246, 201, 117, 120),
+            "progress_fill": (246, 201, 117, 255),
+        }
     elif frame == "shadow":
-        outline_color = (140, 110, 255, 180)
-        ring_color = (140, 110, 255)
+        palette = {
+            **palette,
+            "accent": (140, 110, 255),
+            "accent_soft": (188, 170, 255),
+            "panel_stroke": (140, 110, 255, 110),
+            "progress_fill": (140, 110, 255, 255),
+        }
 
-    if theme == "custom_bg":
-        card_fill = (10, 24, 28, 220)
-    elif theme == "color_profile":
-        card_fill = (24, 20, 48, 220)
+    base = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    draw_vertical_gradient(base, palette["bg_top"], palette["bg_bottom"])
+    draw_glow(base, (-120, -80, 470, 370), palette["accent"], 34, 70)
+    draw_glow(base, (980, 40, 1480, 420), palette["accent"], 36, 52)
 
-    cdraw.rounded_rectangle(
-        (60, 80, WIDTH - 60, HEIGHT - 80),
-        radius=30,
-        fill=card_fill,
-        outline=outline_color,
-        width=3,
+    panels = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    pdraw = ImageDraw.Draw(panels)
+    rounded_panel(
+        pdraw,
+        (40, 40, 420, HEIGHT - 40),
+        32,
+        palette["panel"],
+        palette["panel_stroke"],
+        2,
     )
-
-    glow = card.filter(ImageFilter.GaussianBlur(12))
-    base.alpha_composite(glow)
-    base.alpha_composite(card)
+    rounded_panel(
+        pdraw,
+        (460, 40, WIDTH - 40, 220),
+        28,
+        palette["panel"],
+        palette["panel_stroke"],
+        2,
+    )
+    rounded_panel(
+        pdraw,
+        (460, 250, 900, HEIGHT - 40),
+        28,
+        palette["panel"],
+        palette["panel_stroke"],
+        2,
+    )
+    rounded_panel(
+        pdraw,
+        (930, 250, WIDTH - 40, HEIGHT - 40),
+        28,
+        palette["panel"],
+        palette["panel_stroke"],
+        2,
+    )
+    blurred_panels = panels.filter(ImageFilter.GaussianBlur(10))
+    base.alpha_composite(blurred_panels)
+    base.alpha_composite(panels)
 
     avatar = await fetch_avatar(avatar_url)
     avatar = circle_crop(avatar)
-    base.paste(avatar, (110, 150), avatar)
+    avatar_x, avatar_y = 140, 78
+    base.paste(avatar, (avatar_x, avatar_y), avatar)
 
-    ring = Image.new("RGBA", base.size)
+    ring = Image.new("RGBA", base.size, (0, 0, 0, 0))
     rdraw = ImageDraw.Draw(ring)
-    rdraw.ellipse((100, 140, 320, 360), outline=ring_color, width=10)
-
-    glow = ring.filter(ImageFilter.GaussianBlur(10))
+    rdraw.ellipse((132, 70, 328, 266), outline=palette["accent"], width=8)
+    glow = ring.filter(ImageFilter.GaussianBlur(12))
     base.alpha_composite(glow)
     base.alpha_composite(ring)
 
-    name_font = load_font(50)
-    small_font = load_font(24)
-    stat_font = load_font(24)
-
     draw = ImageDraw.Draw(base)
+    title_font = load_font(48)
+    label_font = load_font(22)
+    stat_font = load_font(34)
+    small_font = load_font(19)
 
-    draw.text((380, 140), username, font=name_font, fill=(240, 245, 255))
-    draw.text((380, 205), f"ID: {user_id}", font=small_font, fill=(140, 150, 200))
+    safe_name = username if len(username) <= 18 else f"{username[:15]}..."
+    draw.text((104, 292), safe_name, font=title_font, fill=palette["primary_text"])
 
-    def stat_box(x, label, value):
-        box_fill = (20, 30, 60)
-        box_outline = (120, 140, 255, 80)
+    subtitle = "Игрок, коллекционер, VIP" if frame == "vip_frame" else "Игрок сервера"
+    draw.text((107, 350), subtitle, font=label_font, fill=palette["secondary_text"])
+    draw.text((107, 388), f"ID {user_id}", font=small_font, fill=palette["muted_text"])
 
-        if theme == "color_profile":
-            box_fill = (35, 28, 72)
-            box_outline = (180, 120, 255, 120)
-        elif theme == "custom_bg":
-            box_fill = (16, 42, 46)
-            box_outline = (90, 200, 180, 120)
+    draw.text((500, 78), "Сводка профиля", font=label_font, fill=palette["secondary_text"])
+    summary_stats = [
+        ("БАЛАНС", f"{balance}"),
+        ("УРОВЕНЬ", str(level)),
+        ("РЕПУТАЦИЯ", str(rep)),
+    ]
+    for index, (label, value) in enumerate(summary_stats):
+        x = 500 + index * 210
+        draw.text((x, 130), label, font=small_font, fill=palette["muted_text"])
+        draw.text((x, 156), value, font=stat_font, fill=palette["primary_text"])
 
-        draw.rounded_rectangle(
-            (x, 260, x + 260, 340),
-            radius=16,
-            fill=box_fill,
-            outline=box_outline,
-        )
-
-        draw.text((x + 20, 272), label, font=small_font, fill=(160, 170, 220))
-        draw.text((x + 20, 300), str(value), font=stat_font, fill=(255, 255, 255))
-
-    stat_box(380, "LEVEL", level)
-    stat_box(660, "REP", rep)
-    stat_box(940, "BALANCE", f"{balance}")
-
+    draw.text((500, 290), "Прогресс XP", font=label_font, fill=palette["secondary_text"])
     progress = xp / xp_needed if xp_needed > 0 else 0
     progress = max(0, min(1, progress))
-
-    bar_x = 450
-    bar_y = 390
-    bar_w = 600
+    bar_x = 500
+    bar_y = 336
+    bar_w = 340
     bar_h = 24
-
-    bar_bg = (10, 15, 30)
-    bar_fill = (60, 180, 255)
-    xp_text_color = (120, 180, 255)
-
-    if theme == "color_profile":
-        bar_bg = (24, 18, 40)
-        bar_fill = (180, 90, 255)
-        xp_text_color = (200, 140, 255)
-    elif theme == "custom_bg":
-        bar_bg = (8, 22, 24)
-        bar_fill = (60, 220, 170)
-        xp_text_color = (120, 230, 190)
-
-    draw.rounded_rectangle(
+    rounded_panel(
+        draw,
         (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h),
-        radius=12,
-        fill=bar_bg,
+        12,
+        palette["progress_bg"],
     )
-
-    fill = int(bar_w * progress)
-    if fill > 0:
-        draw.rounded_rectangle(
-            (bar_x, bar_y, bar_x + fill, bar_y + bar_h),
-            radius=12,
-            fill=bar_fill,
+    fill_w = int(bar_w * progress)
+    if fill_w > 0:
+        rounded_panel(
+            draw,
+            (bar_x, bar_y, bar_x + fill_w, bar_y + bar_h),
+            12,
+            palette["progress_fill"],
         )
-
-    draw.text((bar_x - 60, bar_y - 4), "XP", font=small_font, fill=xp_text_color)
+    draw.text((500, 374), f"{xp} / {xp_needed} XP", font=small_font, fill=palette["primary_text"])
+    remaining_xp = max(xp_needed - xp, 0)
     draw.text(
-        (bar_x + bar_w + 20, bar_y - 4),
-        f"{xp}/{xp_needed} XP",
+        (500, 408),
+        f"До следующего уровня осталось {remaining_xp} XP",
         font=small_font,
-        fill=(230, 235, 255),
+        fill=palette["muted_text"],
     )
+
+    draw.text((970, 290), "Статус", font=label_font, fill=palette["secondary_text"])
+    status_items = [
+        f"Тема: {theme or 'Стандарт'}",
+        f"Рамка: {frame or 'Стандарт'}",
+    ]
+    for index, text in enumerate(status_items):
+        top = 334 + index * 66
+        rounded_panel(
+            draw,
+            (970, top, 1220, top + 54),
+            16,
+            palette["panel_fill"],
+        )
+        draw.text((994, top + 13), text, font=small_font, fill=palette["primary_text"])
 
     if frame == "vip_frame":
-        badge_text = "VIP FRAME"
-        badge_fill = (255, 210, 90)
-        badge_text_fill = (30, 20, 0)
-
-        badge_bbox = draw.textbbox((0, 0), badge_text, font=small_font)
-        badge_w = badge_bbox[2] - badge_bbox[0]
-        badge_h = badge_bbox[3] - badge_bbox[1]
-
-        bx = WIDTH - 240
-        by = 110
-        draw.rounded_rectangle(
-            (bx, by, bx + badge_w + 32, by + badge_h + 18),
-            radius=16,
-            fill=badge_fill,
-        )
-        draw.text((bx + 16, by + 8), badge_text, font=small_font, fill=badge_text_fill)
+        badge_w = 150
+        badge_h = 42
+        badge_x = 240
+        badge_y = 102
+        rounded_panel(draw, (badge_x, badge_y, badge_x + badge_w, badge_y + badge_h), 16, palette["progress_fill"])
+        draw.text((badge_x + 24, badge_y + 11), "VIP", font=small_font, fill=(35, 24, 8))
 
     buffer = io.BytesIO()
     base.save(buffer, "PNG")
