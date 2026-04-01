@@ -79,53 +79,88 @@ class BlackJackView(discord.ui.View):
             labels = [*labels[:-1], "?"]
         return " | ".join(labels)
 
-    def _format_player_hand(self, hand: BlackJackHand, index: int) -> str:
-        total = self._hand_value(hand.cards)
-        flags: list[str] = []
+    def _hand_status(self, hand: BlackJackHand, index: int) -> str:
         if not self.finished and index == self.active_hand_index:
-            flags.append("Сейчас ход")
+            return "Сейчас ход"
         if hand.blackjack:
-            flags.append("Blackjack")
-        if hand.doubled:
-            flags.append("Double")
+            return "Blackjack"
         if hand.busted:
-            flags.append("Перебор")
-        elif hand.stood:
-            flags.append("Зафиксирована")
-        suffix = f" ({', '.join(flags)})" if flags else ""
+            return "Перебор"
+        if hand.stood:
+            return "Зафиксирована"
+        if hand.doubled:
+            return "Удвоена"
+        return "В игре"
+
+    def _format_live_player_hand(self, hand: BlackJackHand, index: int) -> str:
+        pointer = ">" if not self.finished and index == self.active_hand_index else "•"
+        total = self._hand_value(hand.cards)
+        extra_tags: list[str] = []
+        if hand.blackjack:
+            extra_tags.append("Blackjack")
+        if hand.doubled:
+            extra_tags.append("Double")
+        tags = f" [{' • '.join(extra_tags)}]" if extra_tags else ""
         return (
-            f"**Рука {index + 1}**{suffix}\n"
-            f"{self._format_hand(hand.cards, hide_last=False)}\n"
-            f"Сумма: **{total}** • Ставка: **{hand.bet}** 🪙"
+            f"{pointer} **Рука {index + 1}**{tags}\n"
+            f"Карты: {self._format_hand(hand.cards, hide_last=False)}\n"
+            f"Сумма: **{total}**\n"
+            f"Ставка: **{hand.bet}** 🪙\n"
+            f"Статус: **{self._hand_status(hand, index)}**"
         )
 
-    def _build_embed(
+    def _format_final_player_totals(self) -> str:
+        return "\n".join(
+            f"Рука {index}: **{self._hand_value(hand.cards)}**"
+            for index, hand in enumerate(self.hands, start=1)
+        )
+
+    def _build_live_embed(
         self,
         *,
         title: str,
         color: discord.Color,
-        result_lines: list[str],
-        reveal_dealer: bool,
-        balance_after: int | None = None,
+        action_lines: list[str],
     ) -> discord.Embed:
         embed = discord.Embed(title=f"🃏 {title}", color=color)
         embed.add_field(name="Игра", value="Black Jack", inline=True)
         embed.add_field(name="Игрок", value=self.player.mention, inline=True)
         embed.add_field(name="Сумма ставок", value=f"{sum(hand.bet for hand in self.hands)} 🪙", inline=True)
-        dealer_total = self._hand_value(self.dealer_hand)
         embed.add_field(
-            name="Руки игрока",
-            value="\n\n".join(self._format_player_hand(hand, index) for index, hand in enumerate(self.hands)),
+            name="Твои руки",
+            value="\n\n".join(self._format_live_player_hand(hand, index) for index, hand in enumerate(self.hands)),
             inline=False,
         )
         embed.add_field(
             name="Рука дилера",
-            value=f"{self._format_hand(self.dealer_hand, hide_last=not reveal_dealer)}\nСумма: **{dealer_total if reveal_dealer else '?'}**",
+            value=(
+                f"Карты: {self._format_hand(self.dealer_hand, hide_last=True)}\n"
+                f"Видимая карта: **{self._card_label(self.dealer_hand[0])}**\n"
+                "Сумма: **?**"
+            ),
             inline=False,
         )
-        embed.add_field(name="Статус", value="\n".join(result_lines), inline=False)
-        if balance_after is not None:
-            embed.add_field(name="Баланс после игры", value=f"{balance_after} 🪙", inline=False)
+        embed.add_field(name="Действия", value="\n".join(action_lines), inline=False)
+        embed.set_thumbnail(url=self.player.display_avatar.url)
+        embed.set_footer(text=f"Игрок: {self.player.display_name}")
+        return embed
+
+    def _build_final_embed(
+        self,
+        *,
+        title: str,
+        color: discord.Color,
+        result_lines: list[str],
+        balance_after: int,
+    ) -> discord.Embed:
+        embed = discord.Embed(title=f"🃏 {title}", color=color)
+        embed.add_field(name="Игра", value="Black Jack", inline=True)
+        embed.add_field(name="Игрок", value=self.player.mention, inline=True)
+        embed.add_field(name="Сумма ставок", value=f"{sum(hand.bet for hand in self.hands)} 🪙", inline=True)
+        embed.add_field(name="Суммы игрока", value=self._format_final_player_totals(), inline=True)
+        embed.add_field(name="Сумма дилера", value=f"**{self._hand_value(self.dealer_hand)}**", inline=True)
+        embed.add_field(name="Итог", value="\n".join(result_lines), inline=False)
+        embed.add_field(name="Баланс после игры", value=f"{balance_after} 🪙", inline=False)
         embed.set_thumbnail(url=self.player.display_avatar.url)
         embed.set_footer(text=f"Игрок: {self.player.display_name}")
         return embed
@@ -140,11 +175,10 @@ class BlackJackView(discord.ui.View):
             lines.append("Удвоить — удвоить ставку, взять одну карту и сразу остановиться.")
         if self._can_split_hand(hand):
             lines.append("Разделить — разбить пару на две независимые руки.")
-        return self._build_embed(
+        return self._build_live_embed(
             title="Black Jack: ход",
             color=discord.Color.blurple(),
-            result_lines=lines,
-            reveal_dealer=False,
+            action_lines=lines,
         )
 
     def _disable_controls(self) -> None:
@@ -176,11 +210,10 @@ class BlackJackView(discord.ui.View):
         self._disable_controls()
         self.stop()
         self.cog.unregister_blackjack_game(self.player.id)
-        embed = self._build_embed(
+        embed = self._build_final_embed(
             title=title,
             color=color,
             result_lines=result_lines,
-            reveal_dealer=True,
             balance_after=balance_after,
         )
         await interaction.response.edit_message(embed=embed, view=self)
@@ -207,7 +240,11 @@ class BlackJackView(discord.ui.View):
             balance_after = self.cog.profile_service.get_profile(self.player.id).balance
             title = "Black Jack: ничья"
             color = discord.Color.blurple()
-            result_lines = ["У тебя и у дилера Black Jack.", "Ставка возвращена."]
+            result_lines = [
+                "Победитель: **Ничья**",
+                "Результат: у обоих Black Jack",
+                "Изменение баланса: **0** 🪙",
+            ]
             result_text = "Ничья: у обоих blackjack"
         elif player_blackjack:
             player_hand.blackjack = True
@@ -218,19 +255,27 @@ class BlackJackView(discord.ui.View):
             balance_after = self.cog.profile_service.add_balance(self.player.id, win_amount)
             title = "Black Jack: победа"
             color = discord.Color.green()
-            result_lines = ["Натуральный Black Jack.", f"Выплата 3:2: **+{win_amount}** 🪙", *bonus_lines]
+            result_lines = [
+                "Победитель: **Игрок**",
+                "Результат: натуральный Black Jack",
+                f"Изменение баланса: **+{win_amount}** 🪙",
+                *bonus_lines,
+            ]
             result_text = f"Победа blackjack: {win_amount}"
         else:
             balance_after = self.cog.profile_service.add_balance(self.player.id, -player_hand.bet)
             title = "Black Jack: поражение"
             color = discord.Color.red()
-            result_lines = ["Дилер собрал Black Jack.", f"Проигрыш: **-{player_hand.bet}** 🪙"]
+            result_lines = [
+                "Победитель: **Дилер**",
+                "Результат: дилер собрал Black Jack",
+                f"Изменение баланса: **-{player_hand.bet}** 🪙",
+            ]
             result_text = "Поражение: blackjack дилера"
-        embed = self._build_embed(
+        embed = self._build_final_embed(
             title=title,
             color=color,
             result_lines=result_lines,
-            reveal_dealer=True,
             balance_after=balance_after,
         )
         return embed, balance_after, result_text
@@ -250,11 +295,14 @@ class BlackJackView(discord.ui.View):
         self.cog.unregister_blackjack_game(self.player.id)
         if self.message is None:
             return
-        embed = self._build_embed(
+        embed = self._build_final_embed(
             title="Black Jack: время вышло",
             color=discord.Color.orange(),
-            result_lines=["Игра закрыта из-за бездействия.", "Ставка не списана, баланс не изменился."],
-            reveal_dealer=True,
+            result_lines=[
+                "Победитель: **Нет**",
+                "Результат: игра закрыта из-за бездействия",
+                "Изменение баланса: **0** 🪙",
+            ],
             balance_after=self.cog.profile_service.get_profile(self.player.id).balance,
         )
         try:
@@ -281,43 +329,50 @@ class BlackJackView(discord.ui.View):
             self.dealer_hand.append(self._draw_card())
         dealer_total = self._hand_value(self.dealer_hand)
         total_delta = 0
-        lines = [f"Сумма дилера: **{dealer_total}**"]
+        hand_summaries: list[str] = []
         for index, hand in enumerate(self.hands, start=1):
             player_total = self._hand_value(hand.cards)
             if hand.busted:
                 hand.payout_delta = -hand.bet
-                hand.result_text = f"Рука {index}: перебор, **-{hand.bet}** 🪙"
+                hand.result_text = f"Рука {index}: **{player_total} vs {dealer_total}** - поражение"
             elif dealer_total > 21 or player_total > dealer_total:
                 win_amount = hand.bet
                 bonus_lines: list[str] = []
                 if self.cog.shop_service is not None:
                     win_amount, bonus_lines = self.cog.shop_service.apply_game_win_bonus(self.player.id, win_amount)
                 hand.payout_delta = win_amount
-                hand.result_text = f"Рука {index}: победа, **+{win_amount}** 🪙"
+                hand.result_text = f"Рука {index}: **{player_total} vs {dealer_total}** - победа"
                 if bonus_lines:
                     hand.result_text += f" ({'; '.join(bonus_lines)})"
             elif player_total == dealer_total:
                 hand.payout_delta = 0
-                hand.result_text = f"Рука {index}: ничья, ставка возвращена"
+                hand.result_text = f"Рука {index}: **{player_total} vs {dealer_total}** - ничья"
             else:
                 hand.payout_delta = -hand.bet
-                hand.result_text = f"Рука {index}: поражение, **-{hand.bet}** 🪙"
+                hand.result_text = f"Рука {index}: **{player_total} vs {dealer_total}** - поражение"
             total_delta += hand.payout_delta
-            lines.append(hand.result_text)
+            hand_summaries.append(hand.result_text)
         balance_after = self.cog.profile_service.add_balance(self.player.id, total_delta) if total_delta else self.cog.profile_service.get_profile(self.player.id).balance
         title = "Black Jack: ничья"
         color = discord.Color.blurple()
+        winner = "Ничья"
         if total_delta > 0:
             title = "Black Jack: победа"
             color = discord.Color.green()
+            winner = "Игрок"
         elif total_delta < 0:
             title = "Black Jack: поражение"
             color = discord.Color.red()
+            winner = "Дилер"
         await self._finish(
             interaction,
             title=title,
             color=color,
-            result_lines=lines,
+            result_lines=[
+                f"Победитель: **{winner}**",
+                *hand_summaries,
+                f"Изменение баланса: **{total_delta:+}** 🪙",
+            ],
             balance_after=balance_after,
             result_text=f"Дилер {dealer_total}, итог {total_delta}",
         )
@@ -804,4 +859,3 @@ class Games(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Games(bot), guild=Config.SERVER_OBJ)
-
