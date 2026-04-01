@@ -115,6 +115,16 @@ class BlackJackView(discord.ui.View):
             for index, hand in enumerate(self.hands, start=1)
         )
 
+    def _format_live_dealer_hand(self) -> str:
+        return (
+            f"**Карты**\n{self._format_hand(self.dealer_hand, hide_last=True)}\n\n"
+            f"**Видимая карта**\n{self._card_label(self.dealer_hand[0])}\n\n"
+            "**Сумма**\n?"
+        )
+
+    def _format_final_dealer_hand(self) -> str:
+        return f"**{self._hand_value(self.dealer_hand)}**"
+
     def _build_live_embed(
         self,
         *,
@@ -129,16 +139,12 @@ class BlackJackView(discord.ui.View):
         embed.add_field(
             name="Твои руки",
             value="\n\n".join(self._format_live_player_hand(hand, index) for index, hand in enumerate(self.hands)),
-            inline=False,
+            inline=True,
         )
         embed.add_field(
             name="Рука дилера",
-            value=(
-                f"Карты: {self._format_hand(self.dealer_hand, hide_last=True)}\n"
-                f"Видимая карта: **{self._card_label(self.dealer_hand[0])}**\n"
-                "Сумма: **?**"
-            ),
-            inline=False,
+            value=self._format_live_dealer_hand(),
+            inline=True,
         )
         embed.add_field(name="Действия", value="\n".join(action_lines), inline=False)
         embed.set_thumbnail(url=self.player.display_avatar.url)
@@ -158,7 +164,7 @@ class BlackJackView(discord.ui.View):
         embed.add_field(name="Игрок", value=self.player.mention, inline=True)
         embed.add_field(name="Сумма ставок", value=f"{sum(hand.bet for hand in self.hands)} 🪙", inline=True)
         embed.add_field(name="Суммы игрока", value=self._format_final_player_totals(), inline=True)
-        embed.add_field(name="Сумма дилера", value=f"**{self._hand_value(self.dealer_hand)}**", inline=True)
+        embed.add_field(name="Сумма дилера", value=self._format_final_dealer_hand(), inline=True)
         embed.add_field(name="Итог", value="\n".join(result_lines), inline=False)
         embed.add_field(name="Баланс после игры", value=f"{balance_after} 🪙", inline=False)
         embed.set_thumbnail(url=self.player.display_avatar.url)
