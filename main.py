@@ -1,4 +1,4 @@
-import asyncio
+п»їimport asyncio
 import logging
 
 import discord
@@ -22,7 +22,6 @@ logger = logging.getLogger("bot")
 
 
 class MyBot(commands.Bot):
-
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.guilds = True
@@ -34,7 +33,7 @@ class MyBot(commands.Bot):
         super().__init__(
             command_prefix=Config.BOT.PREFIX,
             intents=intents,
-            help_command=None
+            help_command=None,
         )
 
         self.guild_commands_synced = False
@@ -48,6 +47,7 @@ class MyBot(commands.Bot):
         self.profile_service = ProfileService(self.profile_repository)
         self.panel_service = PanelService(self.panel_state_repository)
         from services.shop_service import ShopService
+
         self.shop_service = ShopService(self.shop_repository, self.profile_service)
 
         # cogs
@@ -64,45 +64,41 @@ class MyBot(commands.Bot):
     async def sync_guild_commands(self) -> None:
         synced = await self.tree.sync(guild=Config.SERVER_OBJ)
         self.guild_commands_synced = True
-        logger.info(f"Guild slash-команд синхронизировано: {len(synced)}")
+        logger.info(f"Guild slash commands synced: {len(synced)}")
 
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
         for extension in self.cogs_list:
             try:
                 await self.load_extension(extension)
-                logger.info(f"Загружен cog: {extension}")
+                logger.info(f"Loaded cog: {extension}")
             except Exception:
-                logger.exception(f"Ошибка загрузки {extension}")
+                logger.exception(f"Failed to load cog: {extension}")
 
         try:
             await self.sync_guild_commands()
         except Exception:
-            logger.exception("Ошибка синхронизации slash-команд")
+            logger.exception("Failed to sync slash commands")
 
-    async def close(self):
-
+    async def close(self) -> None:
         try:
             self.profile_repository.close()
         finally:
             await super().close()
 
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         if self.user is None:
             return
 
-        logger.info(
-            f"Бот запущен как {self.user} (ID: {self.user.id})"
-        )
+        logger.info(f"Bot started as {self.user} (ID: {self.user.id})")
 
         if not self.guild_commands_synced:
             try:
                 await self.sync_guild_commands()
             except Exception:
-                logger.exception("Ошибка повторной синхронизации slash-команд в on_ready")
+                logger.exception("Failed to re-sync slash commands in on_ready")
 
 
-async def main():
-
+async def main() -> None:
     Config.validate()
 
     bot = MyBot()
