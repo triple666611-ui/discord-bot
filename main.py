@@ -37,6 +37,8 @@ class MyBot(commands.Bot):
             help_command=None
         )
 
+        self.guild_commands_synced = False
+
         # repositories
         self.profile_repository = ProfileRepository(Config.DATA.PROFILES_DB_PATH)
         self.panel_state_repository = PanelStateRepository(Config.DATA.PANEL_STATE_PATH)
@@ -59,19 +61,23 @@ class MyBot(commands.Bot):
             "cogs.shop",
         )
 
+    async def sync_guild_commands(self) -> None:
+        synced = await self.tree.sync(guild=Config.SERVER_OBJ)
+        self.guild_commands_synced = True
+        logger.info(f"Guild slash-команд синхронизировано: {len(synced)}")
+
     async def setup_hook(self):
         for extension in self.cogs_list:
             try:
                 await self.load_extension(extension)
-                logger.info(f"Р—Р°РіСЂСѓР¶РµРЅ cog: {extension}")
+                logger.info(f"Загружен cog: {extension}")
             except Exception:
-                logger.exception(f"РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё {extension}")
+                logger.exception(f"Ошибка загрузки {extension}")
 
         try:
-            synced = await self.tree.sync(guild=Config.SERVER_OBJ)
-            logger.info(f"Guild slash-РєРѕРјР°РЅРґ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ: {len(synced)}")
+            await self.sync_guild_commands()
         except Exception:
-            logger.exception("РћС€РёР±РєР° СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё slash-РєРѕРјР°РЅРґ")
+            logger.exception("Ошибка синхронизации slash-команд")
 
     async def close(self):
 
@@ -85,8 +91,14 @@ class MyBot(commands.Bot):
             return
 
         logger.info(
-            f"Р‘РѕС‚ Р·Р°РїСѓС‰РµРЅ РєР°Рє {self.user} (ID: {self.user.id})"
-    )
+            f"Бот запущен как {self.user} (ID: {self.user.id})"
+        )
+
+        if not self.guild_commands_synced:
+            try:
+                await self.sync_guild_commands()
+            except Exception:
+                logger.exception("Ошибка повторной синхронизации slash-команд в on_ready")
 
 
 async def main():
