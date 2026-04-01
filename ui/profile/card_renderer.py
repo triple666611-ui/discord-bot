@@ -1,4 +1,4 @@
-import io
+п»їimport io
 from pathlib import Path
 
 import aiohttp
@@ -26,13 +26,11 @@ async def fetch_avatar(url: str):
             data = await resp.read()
 
     avatar = Image.open(io.BytesIO(data)).convert("RGBA")
-    avatar = avatar.resize((180, 180))
-    return avatar
+    return avatar.resize((180, 180))
 
 
 def circle_crop(img):
     size = img.size[0]
-
     mask = Image.new("L", (size, size), 0)
     draw = ImageDraw.Draw(mask)
     draw.ellipse((0, 0, size, size), fill=255)
@@ -85,6 +83,24 @@ def rounded_panel(draw, box, radius: int, fill, outline=None, width: int = 1):
     draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
 
 
+def format_theme_name(theme):
+    mapping = {
+        None: "Standard",
+        "color_profile": "Neon",
+        "custom_bg": "Emerald",
+    }
+    return mapping.get(theme, str(theme))
+
+
+def format_frame_name(frame):
+    mapping = {
+        None: "Standard",
+        "vip_frame": "VIP",
+        "shadow": "Shadow",
+    }
+    return mapping.get(frame, str(frame))
+
+
 async def render_profile_card(member, profile):
     username = member.display_name
     user_id = member.id
@@ -97,7 +113,6 @@ async def render_profile_card(member, profile):
 
     theme = normalize_theme(profile.get("theme"))
     frame = normalize_frame(profile.get("frame"))
-
     avatar_url = member.display_avatar.url
 
     theme_palette = {
@@ -105,7 +120,6 @@ async def render_profile_card(member, profile):
             "bg_top": (10, 18, 20),
             "bg_bottom": (14, 52, 51),
             "accent": (82, 220, 180),
-            "accent_soft": (145, 212, 195),
             "panel": (10, 22, 24, 220),
             "panel_fill": (20, 50, 48, 255),
             "panel_stroke": (82, 220, 180, 90),
@@ -119,7 +133,6 @@ async def render_profile_card(member, profile):
             "bg_top": (14, 14, 36),
             "bg_bottom": (53, 28, 92),
             "accent": (168, 113, 255),
-            "accent_soft": (207, 173, 255),
             "panel": (19, 12, 42, 220),
             "panel_fill": (40, 24, 72, 255),
             "panel_stroke": (180, 130, 255, 100),
@@ -133,7 +146,6 @@ async def render_profile_card(member, profile):
             "bg_top": (7, 28, 31),
             "bg_bottom": (12, 69, 64),
             "accent": (107, 227, 197),
-            "accent_soft": (173, 240, 223),
             "panel": (8, 23, 24, 220),
             "panel_fill": (19, 54, 50, 255),
             "panel_stroke": (107, 227, 197, 100),
@@ -150,7 +162,6 @@ async def render_profile_card(member, profile):
         palette = {
             **palette,
             "accent": (246, 201, 117),
-            "accent_soft": (240, 210, 150),
             "panel_stroke": (246, 201, 117, 120),
             "progress_fill": (246, 201, 117, 255),
         }
@@ -158,7 +169,6 @@ async def render_profile_card(member, profile):
         palette = {
             **palette,
             "accent": (140, 110, 255),
-            "accent_soft": (188, 170, 255),
             "panel_stroke": (140, 110, 255, 110),
             "progress_fill": (140, 110, 255, 255),
         }
@@ -170,52 +180,20 @@ async def render_profile_card(member, profile):
 
     panels = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     pdraw = ImageDraw.Draw(panels)
-    rounded_panel(
-        pdraw,
-        (40, 40, 420, HEIGHT - 40),
-        32,
-        palette["panel"],
-        palette["panel_stroke"],
-        2,
-    )
-    rounded_panel(
-        pdraw,
-        (460, 40, WIDTH - 40, 220),
-        28,
-        palette["panel"],
-        palette["panel_stroke"],
-        2,
-    )
-    rounded_panel(
-        pdraw,
-        (460, 250, 900, HEIGHT - 40),
-        28,
-        palette["panel"],
-        palette["panel_stroke"],
-        2,
-    )
-    rounded_panel(
-        pdraw,
-        (930, 250, WIDTH - 40, HEIGHT - 40),
-        28,
-        palette["panel"],
-        palette["panel_stroke"],
-        2,
-    )
-    blurred_panels = panels.filter(ImageFilter.GaussianBlur(10))
-    base.alpha_composite(blurred_panels)
+    rounded_panel(pdraw, (40, 40, 420, HEIGHT - 40), 32, palette["panel"], palette["panel_stroke"], 2)
+    rounded_panel(pdraw, (460, 40, WIDTH - 40, 220), 28, palette["panel"], palette["panel_stroke"], 2)
+    rounded_panel(pdraw, (460, 250, 900, HEIGHT - 40), 28, palette["panel"], palette["panel_stroke"], 2)
+    rounded_panel(pdraw, (930, 250, WIDTH - 40, HEIGHT - 40), 28, palette["panel"], palette["panel_stroke"], 2)
+    base.alpha_composite(panels.filter(ImageFilter.GaussianBlur(10)))
     base.alpha_composite(panels)
 
-    avatar = await fetch_avatar(avatar_url)
-    avatar = circle_crop(avatar)
-    avatar_x, avatar_y = 140, 78
-    base.paste(avatar, (avatar_x, avatar_y), avatar)
+    avatar = circle_crop(await fetch_avatar(avatar_url))
+    base.paste(avatar, (140, 78), avatar)
 
     ring = Image.new("RGBA", base.size, (0, 0, 0, 0))
     rdraw = ImageDraw.Draw(ring)
     rdraw.ellipse((132, 70, 328, 266), outline=palette["accent"], width=8)
-    glow = ring.filter(ImageFilter.GaussianBlur(12))
-    base.alpha_composite(glow)
+    base.alpha_composite(ring.filter(ImageFilter.GaussianBlur(12)))
     base.alpha_composite(ring)
 
     draw = ImageDraw.Draw(base)
@@ -227,72 +205,52 @@ async def render_profile_card(member, profile):
     safe_name = username if len(username) <= 18 else f"{username[:15]}..."
     draw.text((104, 292), safe_name, font=title_font, fill=palette["primary_text"])
 
-    subtitle = "Игрок, коллекционер, VIP" if frame == "vip_frame" else "Игрок сервера"
+    subtitle = "Server player"
+    if frame == "vip_frame":
+        subtitle = "Server player, collector, VIP"
     draw.text((107, 350), subtitle, font=label_font, fill=palette["secondary_text"])
     draw.text((107, 388), f"ID {user_id}", font=small_font, fill=palette["muted_text"])
 
-    draw.text((500, 78), "Сводка профиля", font=label_font, fill=palette["secondary_text"])
+    draw.text((500, 78), "Profile summary", font=label_font, fill=palette["secondary_text"])
     summary_stats = [
-        ("БАЛАНС", f"{balance}"),
-        ("УРОВЕНЬ", str(level)),
-        ("РЕПУТАЦИЯ", str(rep)),
+        ("BALANCE", str(balance)),
+        ("LEVEL", str(level)),
+        ("REPUTATION", str(rep)),
     ]
     for index, (label, value) in enumerate(summary_stats):
         x = 500 + index * 210
         draw.text((x, 130), label, font=small_font, fill=palette["muted_text"])
         draw.text((x, 156), value, font=stat_font, fill=palette["primary_text"])
 
-    draw.text((500, 290), "Прогресс XP", font=label_font, fill=palette["secondary_text"])
+    draw.text((500, 290), "XP progress", font=label_font, fill=palette["secondary_text"])
     progress = xp / xp_needed if xp_needed > 0 else 0
     progress = max(0, min(1, progress))
     bar_x = 500
     bar_y = 336
     bar_w = 340
     bar_h = 24
-    rounded_panel(
-        draw,
-        (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h),
-        12,
-        palette["progress_bg"],
-    )
+    rounded_panel(draw, (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h), 12, palette["progress_bg"])
     fill_w = int(bar_w * progress)
     if fill_w > 0:
-        rounded_panel(
-            draw,
-            (bar_x, bar_y, bar_x + fill_w, bar_y + bar_h),
-            12,
-            palette["progress_fill"],
-        )
+        rounded_panel(draw, (bar_x, bar_y, bar_x + fill_w, bar_y + bar_h), 12, palette["progress_fill"])
     draw.text((500, 374), f"{xp} / {xp_needed} XP", font=small_font, fill=palette["primary_text"])
     remaining_xp = max(xp_needed - xp, 0)
-    draw.text(
-        (500, 408),
-        f"До следующего уровня осталось {remaining_xp} XP",
-        font=small_font,
-        fill=palette["muted_text"],
-    )
+    draw.text((500, 408), f"{remaining_xp} XP left to next level", font=small_font, fill=palette["muted_text"])
 
-    draw.text((970, 290), "Статус", font=label_font, fill=palette["secondary_text"])
+    draw.text((970, 290), "Status", font=label_font, fill=palette["secondary_text"])
     status_items = [
-        f"Тема: {theme or 'Стандарт'}",
-        f"Рамка: {frame or 'Стандарт'}",
+        f"Theme: {format_theme_name(theme)}",
+        f"Frame: {format_frame_name(frame)}",
     ]
     for index, text in enumerate(status_items):
         top = 334 + index * 66
-        rounded_panel(
-            draw,
-            (970, top, 1220, top + 54),
-            16,
-            palette["panel_fill"],
-        )
+        rounded_panel(draw, (970, top, 1220, top + 54), 16, palette["panel_fill"])
         draw.text((994, top + 13), text, font=small_font, fill=palette["primary_text"])
 
     if frame == "vip_frame":
-        badge_w = 150
-        badge_h = 42
         badge_x = 240
         badge_y = 102
-        rounded_panel(draw, (badge_x, badge_y, badge_x + badge_w, badge_y + badge_h), 16, palette["progress_fill"])
+        rounded_panel(draw, (badge_x, badge_y, badge_x + 150, badge_y + 42), 16, palette["progress_fill"])
         draw.text((badge_x + 24, badge_y + 11), "VIP", font=small_font, fill=(35, 24, 8))
 
     buffer = io.BytesIO()
