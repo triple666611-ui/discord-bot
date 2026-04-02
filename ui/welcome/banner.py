@@ -28,6 +28,8 @@ TEXT = (238, 255, 250, 245)
 TEXT_SOFT = (173, 240, 223, 235)
 TEXT_MUTED = (122, 188, 175, 220)
 GLOW_ALT = (120, 255, 220, 35)
+BODY_TEXT = "Выберите роли ниже и начните знакомство с сервером."
+FOOTER_TEXT = "Роли можно изменить в любой момент через панель ниже."
 
 
 async def _build_background(width: int, height: int) -> Image.Image:
@@ -62,20 +64,52 @@ async def _build_background(width: int, height: int) -> Image.Image:
     return Image.alpha_composite(bg, blobs)
 
 
+def text_height(draw: ImageDraw.ImageDraw, text: str, font) -> int:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[3] - bbox[1]
+
+
+def wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[str]:
+    words = text.split()
+    if not words:
+        return [""]
+
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        width = draw.textbbox((0, 0), candidate, font=font)[2]
+        if width <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
+def draw_multiline(draw: ImageDraw.ImageDraw, x: int, y: int, lines: list[str], font, fill, line_gap: int) -> int:
+    cursor_y = y
+    for line in lines:
+        draw.text((x, cursor_y), line, font=font, fill=fill)
+        cursor_y += text_height(draw, line, font) + line_gap
+    return cursor_y - line_gap if lines else y
+
+
 async def build_minimal_welcome_banner(guild_name: str) -> bytes:
     base = await _build_background(WIDTH, HEIGHT)
     draw = ImageDraw.Draw(base)
 
     fonts = get_font_pack()
-    title_font = load_font(fonts["hero"])
+    title_font = load_font(64)
     subtitle_font = load_font(fonts["subtitle"])
-    body_font = load_font(fonts["body"])
-    small_font = load_font(fonts["small"])
+    body_font = load_font(24)
+    small_font = load_font(20)
 
     card_x1, card_y1 = 90, 85
     card_x2, card_y2 = WIDTH - 90, HEIGHT - 85
     inner_pad_x = 58
-    inner_pad_y = 30
+    inner_pad_y = 32
     accent_width = 8
     accent_gap = 28
     accent_x1 = card_x1 + inner_pad_x - accent_gap - accent_width
@@ -83,6 +117,7 @@ async def build_minimal_welcome_banner(guild_name: str) -> bytes:
     accent_y1 = card_y1 + inner_pad_y
     accent_y2 = card_y2 - inner_pad_y
     content_x = card_x1 + inner_pad_x
+    content_w = card_x2 - content_x - 70
 
     base = add_blurred_shadow(
         base,
@@ -114,33 +149,18 @@ async def build_minimal_welcome_banner(guild_name: str) -> bytes:
     )
 
     safe_guild = clamp_text(guild_name, 26)
+    body_lines = wrap_text(draw, BODY_TEXT, body_font, content_w)
+    footer_lines = wrap_text(draw, FOOTER_TEXT, small_font, content_w)
 
-    draw.text(
-        (content_x, card_y1 + 42),
-        "WELCOME",
-        font=title_font,
-        fill=TEXT,
-    )
+    y = card_y1 + 34
+    draw.text((content_x, y), "WELCOME", font=title_font, fill=TEXT)
+    y += text_height(draw, "WELCOME", title_font) + 28
 
-    draw.text(
-        (content_x, card_y1 + 145),
-        safe_guild,
-        font=subtitle_font,
-        fill=TEXT_SOFT,
-    )
+    draw.text((content_x, y), safe_guild, font=subtitle_font, fill=TEXT_SOFT)
+    y += text_height(draw, safe_guild, subtitle_font) + 22
 
-    draw.text(
-        (content_x, card_y2 - 88),
-        "Выберите роли ниже и начните знакомство с сервером.",
-        font=body_font,
-        fill=TEXT,
-    )
-
-    draw.text(
-        (content_x, card_y2 - 52),
-        "Роли можно изменить в любой момент через панель ниже.",
-        font=small_font,
-        fill=TEXT_MUTED,
-    )
+    y = draw_multiline(draw, content_x, y, body_lines, body_font, TEXT, 8)
+    y += 16
+    draw_multiline(draw, content_x, y, footer_lines, small_font, TEXT_MUTED, 6)
 
     return image_to_png_bytes(base)
