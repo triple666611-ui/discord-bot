@@ -1,6 +1,6 @@
-from __future__ import annotations
+п»їfrom __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import discord
@@ -15,65 +15,65 @@ EMERALD = 0x52DAB4
 
 ECONOMY_ACTIONS: dict[str, dict[str, str | bool]] = {
     'balance_set': {
-        'label': 'Установить баланс',
-        'summary': 'Задаёт пользователю точное значение баланса.',
+        'label': 'РЈСЃС‚Р°РЅРѕРІРёС‚СЊ Р±Р°Р»Р°РЅСЃ',
+        'summary': 'Р—Р°РґР°С‘С‚ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ С‚РѕС‡РЅРѕРµ Р·РЅР°С‡РµРЅРёРµ Р±Р°Р»Р°РЅСЃР°.',
         'needs_amount': True,
-        'input_label': 'Новый баланс',
-        'placeholder': 'Например, 5000',
+        'input_label': 'РќРѕРІС‹Р№ Р±Р°Р»Р°РЅСЃ',
+        'placeholder': 'РќР°РїСЂРёРјРµСЂ, 5000',
     },
     'balance_add': {
-        'label': 'Добавить баланс',
-        'summary': 'Начисляет валюту без перезаписи текущего баланса.',
+        'label': 'Р”РѕР±Р°РІРёС‚СЊ Р±Р°Р»Р°РЅСЃ',
+        'summary': 'РќР°С‡РёСЃР»СЏРµС‚ РІР°Р»СЋС‚Сѓ Р±РµР· РїРµСЂРµР·Р°РїРёСЃРё С‚РµРєСѓС‰РµРіРѕ Р±Р°Р»Р°РЅСЃР°.',
         'needs_amount': True,
-        'input_label': 'Сколько добавить',
-        'placeholder': 'Например, 250',
+        'input_label': 'РЎРєРѕР»СЊРєРѕ РґРѕР±Р°РІРёС‚СЊ',
+        'placeholder': 'РќР°РїСЂРёРјРµСЂ, 250',
     },
     'balance_remove': {
-        'label': 'Снять баланс',
-        'summary': 'Списывает часть валюты у пользователя.',
+        'label': 'РЎРЅСЏС‚СЊ Р±Р°Р»Р°РЅСЃ',
+        'summary': 'РЎРїРёСЃС‹РІР°РµС‚ С‡Р°СЃС‚СЊ РІР°Р»СЋС‚С‹ Сѓ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.',
         'needs_amount': True,
-        'input_label': 'Сколько снять',
-        'placeholder': 'Например, 100',
+        'input_label': 'РЎРєРѕР»СЊРєРѕ СЃРЅСЏС‚СЊ',
+        'placeholder': 'РќР°РїСЂРёРјРµСЂ, 100',
     },
 }
 
 PROFILE_ACTIONS: dict[str, dict[str, str | bool]] = {
     'xp_set': {
-        'label': 'Установить XP',
-        'summary': 'Задаёт пользователю точное количество XP.',
+        'label': 'РЈСЃС‚Р°РЅРѕРІРёС‚СЊ XP',
+        'summary': 'Р—Р°РґР°С‘С‚ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ С‚РѕС‡РЅРѕРµ РєРѕР»РёС‡РµСЃС‚РІРѕ XP.',
         'needs_amount': True,
-        'input_label': 'Новое XP',
-        'placeholder': 'Например, 1200',
+        'input_label': 'РќРѕРІРѕРµ XP',
+        'placeholder': 'РќР°РїСЂРёРјРµСЂ, 1200',
     },
     'xp_add': {
-        'label': 'Добавить XP',
-        'summary': 'Начисляет дополнительное XP.',
+        'label': 'Р”РѕР±Р°РІРёС‚СЊ XP',
+        'summary': 'РќР°С‡РёСЃР»СЏРµС‚ РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕРµ XP.',
         'needs_amount': True,
-        'input_label': 'Сколько добавить',
-        'placeholder': 'Например, 300',
+        'input_label': 'РЎРєРѕР»СЊРєРѕ РґРѕР±Р°РІРёС‚СЊ',
+        'placeholder': 'РќР°РїСЂРёРјРµСЂ, 300',
     },
     'rep_set': {
-        'label': 'Установить репутацию',
-        'summary': 'Задаёт точное значение репутации.',
+        'label': 'РЈСЃС‚Р°РЅРѕРІРёС‚СЊ СЂРµРїСѓС‚Р°С†РёСЋ',
+        'summary': 'Р—Р°РґР°С‘С‚ С‚РѕС‡РЅРѕРµ Р·РЅР°С‡РµРЅРёРµ СЂРµРїСѓС‚Р°С†РёРё.',
         'needs_amount': True,
-        'input_label': 'Новая репутация',
-        'placeholder': 'Например, 15',
+        'input_label': 'РќРѕРІР°СЏ СЂРµРїСѓС‚Р°С†РёСЏ',
+        'placeholder': 'РќР°РїСЂРёРјРµСЂ, 15',
     },
     'rep_add': {
-        'label': 'Добавить репутацию',
-        'summary': 'Повышает репутацию пользователя.',
+        'label': 'Р”РѕР±Р°РІРёС‚СЊ СЂРµРїСѓС‚Р°С†РёСЋ',
+        'summary': 'РџРѕРІС‹С€Р°РµС‚ СЂРµРїСѓС‚Р°С†РёСЋ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.',
         'needs_amount': True,
-        'input_label': 'Сколько добавить',
-        'placeholder': 'Например, 2',
+        'input_label': 'РЎРєРѕР»СЊРєРѕ РґРѕР±Р°РІРёС‚СЊ',
+        'placeholder': 'РќР°РїСЂРёРјРµСЂ, 2',
     },
     'profile_reset': {
-        'label': 'Сбросить профиль',
-        'summary': 'Обнуляет баланс, XP и репутацию.',
+        'label': 'РЎР±СЂРѕСЃРёС‚СЊ РїСЂРѕС„РёР»СЊ',
+        'summary': 'РћР±РЅСѓР»СЏРµС‚ Р±Р°Р»Р°РЅСЃ, XP Рё СЂРµРїСѓС‚Р°С†РёСЋ.',
         'needs_amount': False,
     },
     'userinfo': {
-        'label': 'Показать userinfo',
-        'summary': 'Открывает служебную карточку участника.',
+        'label': 'РџРѕРєР°Р·Р°С‚СЊ userinfo',
+        'summary': 'РћС‚РєСЂС‹РІР°РµС‚ СЃР»СѓР¶РµР±РЅСѓСЋ РєР°СЂС‚РѕС‡РєСѓ СѓС‡Р°СЃС‚РЅРёРєР°.',
         'needs_amount': False,
     },
 }
@@ -88,7 +88,7 @@ class AdminBaseView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.opener.id:
             await interaction.response.send_message(
-                'Эта админ-панель открыта для другого модератора.',
+                'Р­С‚Р° Р°РґРјРёРЅ-РїР°РЅРµР»СЊ РѕС‚РєСЂС‹С‚Р° РґР»СЏ РґСЂСѓРіРѕРіРѕ РјРѕРґРµСЂР°С‚РѕСЂР°.',
                 ephemeral=True,
             )
             return False
@@ -103,7 +103,7 @@ class AdminBaseView(discord.ui.View):
 
 class BackButton(discord.ui.Button):
     def __init__(self, cog: 'AdminCog', opener: discord.Member):
-        super().__init__(label='Назад', style=discord.ButtonStyle.secondary, row=3)
+        super().__init__(label='РќР°Р·Р°Рґ', style=discord.ButtonStyle.secondary, row=3)
         self.cog = cog
         self.opener = opener
 
@@ -116,7 +116,7 @@ class BackButton(discord.ui.Button):
 
 class AdminTargetSelect(discord.ui.UserSelect):
     def __init__(self, parent_view: 'AdminActionView'):
-        super().__init__(placeholder='Выбери пользователя', min_values=1, max_values=1, row=0)
+        super().__init__(placeholder='Р’С‹Р±РµСЂРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ', min_values=1, max_values=1, row=0)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -135,7 +135,7 @@ class AdminActionSelect(discord.ui.Select):
             )
             for key, meta in definitions.items()
         ]
-        super().__init__(placeholder='Выбери действие', min_values=1, max_values=1, options=options, row=1)
+        super().__init__(placeholder='Р’С‹Р±РµСЂРё РґРµР№СЃС‚РІРёРµ', min_values=1, max_values=1, options=options, row=1)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -151,7 +151,7 @@ class AdminValueModal(discord.ui.Modal):
         self.target_id = target_id
         self.value_input = discord.ui.TextInput(
             label=str(action_meta['input_label']),
-            placeholder=str(action_meta.get('placeholder', 'Введите число')),
+            placeholder=str(action_meta.get('placeholder', 'Р’РІРµРґРёС‚Рµ С‡РёСЃР»Рѕ')),
             required=True,
             max_length=12,
         )
@@ -161,11 +161,11 @@ class AdminValueModal(discord.ui.Modal):
         try:
             amount = int(str(self.value_input.value).strip())
         except ValueError:
-            await interaction.response.send_message('Нужно ввести целое число.', ephemeral=True)
+            await interaction.response.send_message('РќСѓР¶РЅРѕ РІРІРµСЃС‚Рё С†РµР»РѕРµ С‡РёСЃР»Рѕ.', ephemeral=True)
             return
 
         if amount < 0:
-            await interaction.response.send_message('Отрицательные значения здесь запрещены.', ephemeral=True)
+            await interaction.response.send_message('РћС‚СЂРёС†Р°С‚РµР»СЊРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ Р·РґРµСЃСЊ Р·Р°РїСЂРµС‰РµРЅС‹.', ephemeral=True)
             return
 
         result = await self.parent_view.cog.execute_member_action(
@@ -179,16 +179,16 @@ class AdminValueModal(discord.ui.Modal):
 
 class ExecuteActionButton(discord.ui.Button):
     def __init__(self, parent_view: 'AdminActionView'):
-        super().__init__(label='Выполнить', style=discord.ButtonStyle.success, row=2)
+        super().__init__(label='Р’С‹РїРѕР»РЅРёС‚СЊ', style=discord.ButtonStyle.success, row=2)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction) -> None:
         if self.parent_view.selected_target_id is None:
-            await interaction.response.send_message('Сначала выбери пользователя.', ephemeral=True)
+            await interaction.response.send_message('РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.', ephemeral=True)
             return
 
         if self.parent_view.selected_action_key is None:
-            await interaction.response.send_message('Сначала выбери действие.', ephemeral=True)
+            await interaction.response.send_message('РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРё РґРµР№СЃС‚РІРёРµ.', ephemeral=True)
             return
 
         action_key = self.parent_view.selected_action_key
@@ -231,11 +231,11 @@ class AdminActionView(AdminBaseView):
 
     def build_embed(self) -> discord.Embed:
         lines = [f'`{index}.` **{meta["label"]}** - {meta["summary"]}' for index, meta in enumerate(self.definitions.values(), start=1)]
-        target_line = 'не выбран'
+        target_line = 'РЅРµ РІС‹Р±СЂР°РЅ'
         if self.selected_target_id is not None:
             target_line = f'<@{self.selected_target_id}>'
 
-        action_line = 'не выбрано'
+        action_line = 'РЅРµ РІС‹Р±СЂР°РЅРѕ'
         if self.selected_action_key is not None:
             action_line = str(self.definitions[self.selected_action_key]['label'])
 
@@ -244,21 +244,21 @@ class AdminActionView(AdminBaseView):
             description=self.section_description,
             color=EMERALD,
         )
-        embed.add_field(name='Доступные действия', value='\n'.join(lines), inline=False)
-        embed.add_field(name='Выбранный пользователь', value=target_line, inline=True)
-        embed.add_field(name='Выбранное действие', value=action_line, inline=True)
+        embed.add_field(name='Р”РѕСЃС‚СѓРїРЅС‹Рµ РґРµР№СЃС‚РІРёСЏ', value='\n'.join(lines), inline=False)
+        embed.add_field(name='Р’С‹Р±СЂР°РЅРЅС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ', value=target_line, inline=True)
+        embed.add_field(name='Р’С‹Р±СЂР°РЅРЅРѕРµ РґРµР№СЃС‚РІРёРµ', value=action_line, inline=True)
         embed.add_field(
-            name='Как использовать',
-            value='1. Выбери пользователя\n2. Выбери действие\n3. Нажми `Выполнить`',
+            name='РљР°Рє РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ',
+            value='1. Р’С‹Р±РµСЂРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ\n2. Р’С‹Р±РµСЂРё РґРµР№СЃС‚РІРёРµ\n3. РќР°Р¶РјРё `Р’С‹РїРѕР»РЅРёС‚СЊ`',
             inline=False,
         )
-        embed.set_footer(text=f'Оператор: {self.opener.display_name}')
+        embed.set_footer(text=f'РћРїРµСЂР°С‚РѕСЂ: {self.opener.display_name}')
         return embed
 
 
 class SyncPanelsButton(discord.ui.Button):
     def __init__(self, parent_view: 'AdminServiceView'):
-        super().__init__(label='Обновить панели', style=discord.ButtonStyle.success, row=1)
+        super().__init__(label='РћР±РЅРѕРІРёС‚СЊ РїР°РЅРµР»Рё', style=discord.ButtonStyle.success, row=1)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -268,7 +268,7 @@ class SyncPanelsButton(discord.ui.Button):
 
 class SyncCommandsButton(discord.ui.Button):
     def __init__(self, parent_view: 'AdminServiceView'):
-        super().__init__(label='Синхронизировать команды', style=discord.ButtonStyle.primary, row=1)
+        super().__init__(label='РЎРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ РєРѕРјР°РЅРґС‹', style=discord.ButtonStyle.primary, row=1)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -278,7 +278,7 @@ class SyncCommandsButton(discord.ui.Button):
 
 class OpenAuditButton(discord.ui.Button):
     def __init__(self, parent_view: 'AdminServiceView'):
-        super().__init__(label='Открыть аудит', style=discord.ButtonStyle.secondary, row=1)
+        super().__init__(label='РћС‚РєСЂС‹С‚СЊ Р°СѓРґРёС‚', style=discord.ButtonStyle.secondary, row=1)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -290,7 +290,7 @@ class OpenAuditButton(discord.ui.Button):
 
 class RefreshAuditButton(discord.ui.Button):
     def __init__(self, parent_view: 'AdminAuditView'):
-        super().__init__(label='Обновить аудит', style=discord.ButtonStyle.primary, row=1)
+        super().__init__(label='РћР±РЅРѕРІРёС‚СЊ Р°СѓРґРёС‚', style=discord.ButtonStyle.primary, row=1)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction) -> None:
@@ -317,36 +317,36 @@ class AdminAuditView(AdminBaseView):
 
 
 class AdminHomeView(AdminBaseView):
-    @discord.ui.button(label='Экономика', style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label='Р­РєРѕРЅРѕРјРёРєР°', style=discord.ButtonStyle.success, row=0)
     async def economy_button(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         view = AdminActionView(
             self.cog,
             self.opener,
-            section_title='Admin Panel • Экономика',
-            section_description='Управление валютой и ручными начислениями.',
+            section_title='Admin Panel вЂў Р­РєРѕРЅРѕРјРёРєР°',
+            section_description='РЈРїСЂР°РІР»РµРЅРёРµ РІР°Р»СЋС‚РѕР№ Рё СЂСѓС‡РЅС‹РјРё РЅР°С‡РёСЃР»РµРЅРёСЏРјРё.',
             definitions=ECONOMY_ACTIONS,
         )
         await interaction.response.edit_message(embed=view.build_embed(), view=view)
 
-    @discord.ui.button(label='Профили', style=discord.ButtonStyle.primary, row=0)
+    @discord.ui.button(label='РџСЂРѕС„РёР»Рё', style=discord.ButtonStyle.primary, row=0)
     async def profile_button(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         view = AdminActionView(
             self.cog,
             self.opener,
-            section_title='Admin Panel • Профили',
-            section_description='Тонкая настройка XP, репутации и профиля участника.',
+            section_title='Admin Panel вЂў РџСЂРѕС„РёР»Рё',
+            section_description='РўРѕРЅРєР°СЏ РЅР°СЃС‚СЂРѕР№РєР° XP, СЂРµРїСѓС‚Р°С†РёРё Рё РїСЂРѕС„РёР»СЏ СѓС‡Р°СЃС‚РЅРёРєР°.',
             definitions=PROFILE_ACTIONS,
         )
         await interaction.response.edit_message(embed=view.build_embed(), view=view)
 
-    @discord.ui.button(label='Сервис', style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label='РЎРµСЂРІРёСЃ', style=discord.ButtonStyle.secondary, row=0)
     async def service_button(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await interaction.response.edit_message(
             embed=self.cog.build_service_embed(self.opener),
             view=AdminServiceView(self.cog, self.opener),
         )
 
-    @discord.ui.button(label='Аудит', style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label='РђСѓРґРёС‚', style=discord.ButtonStyle.secondary, row=0)
     async def audit_button(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         await interaction.response.edit_message(
             embed=self.cog.build_audit_embed(),
@@ -362,55 +362,55 @@ class AdminCog(commands.Cog):
 
     def validate_admin_interaction(self, interaction: discord.Interaction) -> str | None:
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
-            return 'Команда доступна только на сервере.'
+            return 'РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.'
 
         if interaction.channel_id != Config.CHANNELS.ADMIN_PANEL_CHANNEL_ID:
-            return f'Эта панель доступна только в канале <#{Config.CHANNELS.ADMIN_PANEL_CHANNEL_ID}>.'
+            return f'Р­С‚Р° РїР°РЅРµР»СЊ РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РІ РєР°РЅР°Р»Рµ <#{Config.CHANNELS.ADMIN_PANEL_CHANNEL_ID}>.'
 
         if not has_admin_access(interaction.user):
-            return 'У тебя нет прав для использования админ-панели.'
+            return 'РЈ С‚РµР±СЏ РЅРµС‚ РїСЂР°РІ РґР»СЏ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ Р°РґРјРёРЅ-РїР°РЅРµР»Рё.'
 
         return None
 
     def build_home_embed(self, operator: discord.Member) -> discord.Embed:
         embed = discord.Embed(
-            title='Admin Panel • Diplom',
-            description='Единая админ-панель для экономики, профилей, служебных синхронизаций и аудита.',
+            title='Admin Panel вЂў Diplom',
+            description='Р•РґРёРЅР°СЏ Р°РґРјРёРЅ-РїР°РЅРµР»СЊ РґР»СЏ СЌРєРѕРЅРѕРјРёРєРё, РїСЂРѕС„РёР»РµР№, СЃР»СѓР¶РµР±РЅС‹С… СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёР№ Рё Р°СѓРґРёС‚Р°.',
             color=EMERALD,
         )
         embed.add_field(
-            name='Экономика',
+            name='Р­РєРѕРЅРѕРјРёРєР°',
             value='`balance set`\n`balance add`\n`balance remove`',
             inline=True,
         )
         embed.add_field(
-            name='Профили',
+            name='РџСЂРѕС„РёР»Рё',
             value='`xp set`\n`xp add`\n`rep set`\n`rep add`\n`profile reset`\n`userinfo`',
             inline=True,
         )
         embed.add_field(
-            name='Сервис',
+            name='РЎРµСЂРІРёСЃ',
             value='`panel sync`\n`slash sync`\n`audit`',
             inline=True,
         )
         embed.add_field(
-            name='Канал использования',
+            name='РљР°РЅР°Р» РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ',
             value=f'<#{Config.CHANNELS.ADMIN_PANEL_CHANNEL_ID}>',
             inline=False,
         )
-        embed.set_footer(text=f'Оператор: {operator.display_name}')
+        embed.set_footer(text=f'РћРїРµСЂР°С‚РѕСЂ: {operator.display_name}')
         return embed
 
     def build_service_embed(self, operator: discord.Member) -> discord.Embed:
         embed = discord.Embed(
-            title='Admin Panel • Сервис',
-            description='Служебные операции для панелей и slash-команд.',
+            title='Admin Panel вЂў РЎРµСЂРІРёСЃ',
+            description='РЎР»СѓР¶РµР±РЅС‹Рµ РѕРїРµСЂР°С†РёРё РґР»СЏ РїР°РЅРµР»РµР№ Рё slash-РєРѕРјР°РЅРґ.',
             color=EMERALD,
         )
-        embed.add_field(name='Обновить панели', value='Пересобирает welcome, rules и report panel.', inline=False)
-        embed.add_field(name='Синхронизировать команды', value='Повторно синхронизирует guild slash-команды.', inline=False)
-        embed.add_field(name='Аудит', value='Показывает последние действия админов.', inline=False)
-        embed.set_footer(text=f'Оператор: {operator.display_name}')
+        embed.add_field(name='РћР±РЅРѕРІРёС‚СЊ РїР°РЅРµР»Рё', value='РџРµСЂРµСЃРѕР±РёСЂР°РµС‚ welcome, rules Рё report panel.', inline=False)
+        embed.add_field(name='РЎРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ РєРѕРјР°РЅРґС‹', value='РџРѕРІС‚РѕСЂРЅРѕ СЃРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµС‚ guild slash-РєРѕРјР°РЅРґС‹.', inline=False)
+        embed.add_field(name='РђСѓРґРёС‚', value='РџРѕРєР°Р·С‹РІР°РµС‚ РїРѕСЃР»РµРґРЅРёРµ РґРµР№СЃС‚РІРёСЏ Р°РґРјРёРЅРѕРІ.', inline=False)
+        embed.set_footer(text=f'РћРїРµСЂР°С‚РѕСЂ: {operator.display_name}')
         return embed
 
     def build_result_embed(self, *, title: str, description: str, color: int = EMERALD) -> discord.Embed:
@@ -419,40 +419,44 @@ class AdminCog(commands.Cog):
     def build_userinfo_embed(self, member: discord.Member) -> discord.Embed:
         profile = self.profile_service.get_profile(member.id)
         roles = [role.mention for role in member.roles if role != member.guild.default_role]
-        roles_value = ', '.join(roles[:8]) if roles else 'Нет ролей'
+        roles_value = ', '.join(roles[:8]) if roles else 'РќРµС‚ СЂРѕР»РµР№'
         if len(roles) > 8:
-            roles_value += f' и ещё {len(roles) - 8}'
+            roles_value += f' Рё РµС‰С‘ {len(roles) - 8}'
 
-        embed = discord.Embed(title='Admin • Userinfo', color=EMERALD)
-        embed.add_field(name='Пользователь', value=f'{member.mention}\n`{member.id}`', inline=True)
-        embed.add_field(name='Баланс', value=f'**{profile.balance}** монет', inline=True)
+        embed = discord.Embed(title='Admin вЂў Userinfo', color=EMERALD)
+        embed.add_field(name='РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ', value=f'{member.mention}\n`{member.id}`', inline=True)
+        embed.add_field(name='Р‘Р°Р»Р°РЅСЃ', value=f'**{profile.balance}** РјРѕРЅРµС‚', inline=True)
         embed.add_field(name='XP', value=f'**{profile.xp}**', inline=True)
-        embed.add_field(name='Репутация', value=f'**{profile.rep}**', inline=True)
-        embed.add_field(name='Зашёл на сервер', value=discord.utils.format_dt(member.joined_at, style='F') if member.joined_at else 'Неизвестно', inline=False)
-        embed.add_field(name='Роли', value=roles_value, inline=False)
+        embed.add_field(name='Р РµРїСѓС‚Р°С†РёСЏ', value=f'**{profile.rep}**', inline=True)
+        embed.add_field(
+            name='Р—Р°С€С‘Р» РЅР° СЃРµСЂРІРµСЂ',
+            value=discord.utils.format_dt(member.joined_at, style='F') if member.joined_at else 'РќРµРёР·РІРµСЃС‚РЅРѕ',
+            inline=False,
+        )
+        embed.add_field(name='Р РѕР»Рё', value=roles_value, inline=False)
         embed.set_thumbnail(url=member.display_avatar.url)
         return embed
 
     def build_audit_embed(self) -> discord.Embed:
         entries = self.audit_repository.get_recent(limit=8)
         embed = discord.Embed(
-            title='Admin Panel • Аудит',
-            description='Последние действия админов по панели.',
+            title='Admin Panel вЂў РђСѓРґРёС‚',
+            description='РџРѕСЃР»РµРґРЅРёРµ РґРµР№СЃС‚РІРёСЏ Р°РґРјРёРЅРѕРІ РїРѕ РїР°РЅРµР»Рё.',
             color=EMERALD,
         )
         if not entries:
-            embed.add_field(name='Журнал пуст', value='Пока нет ни одного записанного действия.', inline=False)
+            embed.add_field(name='Р–СѓСЂРЅР°Р» РїСѓСЃС‚', value='РџРѕРєР° РЅРµС‚ РЅРё РѕРґРЅРѕРіРѕ Р·Р°РїРёСЃР°РЅРЅРѕРіРѕ РґРµР№СЃС‚РІРёСЏ.', inline=False)
             return embed
 
         lines = []
         for entry in entries:
-            actor = entry.get('actor_name', 'Неизвестно')
+            actor = entry.get('actor_name', 'РќРµРёР·РІРµСЃС‚РЅРѕ')
             action = entry.get('action_label', entry.get('action_key', 'action'))
-            target = entry.get('target_name') or 'без цели'
+            target = entry.get('target_name') or 'Р±РµР· С†РµР»Рё'
             value = entry.get('value')
-            suffix = '' if value is None else f' • значение: `{value}`'
-            lines.append(f'`{entry.get("timestamp", "--")}` • **{actor}** • {action} • {target}{suffix}')
-        embed.add_field(name='Последние записи', value='\n'.join(lines), inline=False)
+            suffix = '' if value is None else f' вЂў Р·РЅР°С‡РµРЅРёРµ: `{value}`'
+            lines.append(f'`{entry.get("timestamp", "--")}` вЂў **{actor}** вЂў {action} вЂў {target}{suffix}')
+        embed.add_field(name='РџРѕСЃР»РµРґРЅРёРµ Р·Р°РїРёСЃРё', value='\n'.join(lines), inline=False)
         return embed
 
     def log_action(
@@ -497,62 +501,69 @@ class AdminCog(commands.Cog):
         guild = interaction.guild
         operator = interaction.user
         if guild is None or not isinstance(operator, discord.Member):
-            return self.build_result_embed(title='Ошибка', description='Команда доступна только на сервере.', color=discord.Color.red())
+            return self.build_result_embed(
+                title='РћС€РёР±РєР°',
+                description='РљРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РЅР° СЃРµСЂРІРµСЂРµ.',
+                color=discord.Color.red(),
+            )
 
         member = await self.resolve_member(guild, target_id)
         if member is None:
-            return self.build_result_embed(title='Ошибка', description='Не удалось найти участника.', color=discord.Color.red())
-
+            return self.build_result_embed(
+                title='РћС€РёР±РєР°',
+                description='РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°Р№С‚Рё СѓС‡Р°СЃС‚РЅРёРєР°.',
+                color=discord.Color.red(),
+            )
 
         if action_key == 'balance_set' and amount is not None:
             new_balance = self.profile_service.set_balance(member.id, amount)
-            self.log_action(actor=operator, action_key=action_key, action_label='Установить баланс', target=member, value=amount)
-            return self.build_result_embed(title='Баланс обновлён', description=f'{member.mention} теперь имеет **{new_balance}** монет.')
+            self.log_action(actor=operator, action_key=action_key, action_label='РЈСЃС‚Р°РЅРѕРІРёС‚СЊ Р±Р°Р»Р°РЅСЃ', target=member, value=amount)
+            return self.build_result_embed(title='Р‘Р°Р»Р°РЅСЃ РѕР±РЅРѕРІР»С‘РЅ', description=f'{member.mention} С‚РµРїРµСЂСЊ РёРјРµРµС‚ **{new_balance}** РјРѕРЅРµС‚.')
 
         if action_key == 'balance_add' and amount is not None:
             new_balance = self.profile_service.add_balance(member.id, amount)
-            self.log_action(actor=operator, action_key=action_key, action_label='Добавить баланс', target=member, value=amount)
-            return self.build_result_embed(title='Баланс пополнен', description=f'{member.mention} получил **{amount}** монет. Новый баланс: **{new_balance}** монет.')
+            self.log_action(actor=operator, action_key=action_key, action_label='Р”РѕР±Р°РІРёС‚СЊ Р±Р°Р»Р°РЅСЃ', target=member, value=amount)
+            return self.build_result_embed(title='Р‘Р°Р»Р°РЅСЃ РїРѕРїРѕР»РЅРµРЅ', description=f'{member.mention} РїРѕР»СѓС‡РёР» **{amount}** РјРѕРЅРµС‚. РќРѕРІС‹Р№ Р±Р°Р»Р°РЅСЃ: **{new_balance}** РјРѕРЅРµС‚.')
 
         if action_key == 'balance_remove' and amount is not None:
             new_balance = self.profile_service.add_balance(member.id, -amount)
-            self.log_action(actor=operator, action_key=action_key, action_label='Снять баланс', target=member, value=amount)
-            return self.build_result_embed(title='Баланс уменьшен', description=f'У {member.mention} списано **{amount}** монет. Остаток: **{new_balance}** монет.')
+            self.log_action(actor=operator, action_key=action_key, action_label='РЎРЅСЏС‚СЊ Р±Р°Р»Р°РЅСЃ', target=member, value=amount)
+            return self.build_result_embed(title='Р‘Р°Р»Р°РЅСЃ СѓРјРµРЅСЊС€РµРЅ', description=f'РЈ {member.mention} СЃРїРёСЃР°РЅРѕ **{amount}** РјРѕРЅРµС‚. РћСЃС‚Р°С‚РѕРє: **{new_balance}** РјРѕРЅРµС‚.')
 
         if action_key == 'xp_set' and amount is not None:
             self.profile_service.set_xp(member.id, amount)
-            self.log_action(actor=operator, action_key=action_key, action_label='Установить XP', target=member, value=amount)
-            return self.build_result_embed(title='XP обновлено', description=f'{member.mention} теперь имеет **{amount}** XP.')
+            self.log_action(actor=operator, action_key=action_key, action_label='РЈСЃС‚Р°РЅРѕРІРёС‚СЊ XP', target=member, value=amount)
+            return self.build_result_embed(title='XP РѕР±РЅРѕРІР»РµРЅРѕ', description=f'{member.mention} С‚РµРїРµСЂСЊ РёРјРµРµС‚ **{amount}** XP.')
 
         if action_key == 'xp_add' and amount is not None:
             self.profile_service.add_xp(member.id, amount)
             updated = self.profile_service.get_profile(member.id)
-            self.log_action(actor=operator, action_key=action_key, action_label='Добавить XP', target=member, value=amount)
-            return self.build_result_embed(title='XP начислено', description=f'{member.mention} получил **{amount}** XP. Теперь у него **{updated.xp}** XP.')
+            self.log_action(actor=operator, action_key=action_key, action_label='Р”РѕР±Р°РІРёС‚СЊ XP', target=member, value=amount)
+            return self.build_result_embed(title='XP РЅР°С‡РёСЃР»РµРЅРѕ', description=f'{member.mention} РїРѕР»СѓС‡РёР» **{amount}** XP. РўРµРїРµСЂСЊ Сѓ РЅРµРіРѕ **{updated.xp}** XP.')
 
         if action_key == 'rep_set' and amount is not None:
             self.profile_service.set_rep(member.id, amount)
-            self.log_action(actor=operator, action_key=action_key, action_label='Установить репутацию', target=member, value=amount)
-            return self.build_result_embed(title='Репутация обновлена', description=f'{member.mention} теперь имеет **{amount}** репутации.')
+            self.log_action(actor=operator, action_key=action_key, action_label='РЈСЃС‚Р°РЅРѕРІРёС‚СЊ СЂРµРїСѓС‚Р°С†РёСЋ', target=member, value=amount)
+            return self.build_result_embed(title='Р РµРїСѓС‚Р°С†РёСЏ РѕР±РЅРѕРІР»РµРЅР°', description=f'{member.mention} С‚РµРїРµСЂСЊ РёРјРµРµС‚ **{amount}** СЂРµРїСѓС‚Р°С†РёРё.')
 
         if action_key == 'rep_add' and amount is not None:
             self.profile_service.add_rep(member.id, amount)
             updated = self.profile_service.get_profile(member.id)
-            self.log_action(actor=operator, action_key=action_key, action_label='Добавить репутацию', target=member, value=amount)
-            return self.build_result_embed(title='Репутация повышена', description=f'{member.mention} получил **{amount}** репутации. Теперь у него **{updated.rep}**.')
+            self.log_action(actor=operator, action_key=action_key, action_label='Р”РѕР±Р°РІРёС‚СЊ СЂРµРїСѓС‚Р°С†РёСЋ', target=member, value=amount)
+            return self.build_result_embed(title='Р РµРїСѓС‚Р°С†РёСЏ РїРѕРІС‹С€РµРЅР°', description=f'{member.mention} РїРѕР»СѓС‡РёР» **{amount}** СЂРµРїСѓС‚Р°С†РёРё. РўРµРїРµСЂСЊ Сѓ РЅРµРіРѕ **{updated.rep}**.')
 
         if action_key == 'profile_reset':
             self.profile_service.set_balance(member.id, 0)
             self.profile_service.set_xp(member.id, 0)
             self.profile_service.set_rep(member.id, 0)
-            self.log_action(actor=operator, action_key=action_key, action_label='Сбросить профиль', target=member)
-            return self.build_result_embed(title='Профиль сброшен', description=f'Профиль {member.mention} обнулён: баланс, XP и репутация сброшены.')
+            self.log_action(actor=operator, action_key=action_key, action_label='РЎР±СЂРѕСЃРёС‚СЊ РїСЂРѕС„РёР»СЊ', target=member)
+            return self.build_result_embed(title='РџСЂРѕС„РёР»СЊ СЃР±СЂРѕС€РµРЅ', description=f'РџСЂРѕС„РёР»СЊ {member.mention} РѕР±РЅСѓР»С‘РЅ: Р±Р°Р»Р°РЅСЃ, XP Рё СЂРµРїСѓС‚Р°С†РёСЏ СЃР±СЂРѕС€РµРЅС‹.')
 
         if action_key == 'userinfo':
-            self.log_action(actor=operator, action_key=action_key, action_label='Открыть userinfo', target=member)
+            self.log_action(actor=operator, action_key=action_key, action_label='РћС‚РєСЂС‹С‚СЊ userinfo', target=member)
             return self.build_userinfo_embed(member)
 
-        return self.build_result_embed(title='Ошибка', description='Неизвестное действие.', color=discord.Color.red())
+        return self.build_result_embed(title='РћС€РёР±РєР°', description='РќРµРёР·РІРµСЃС‚РЅРѕРµ РґРµР№СЃС‚РІРёРµ.', color=discord.Color.red())
 
     async def sync_panels(self, interaction: discord.Interaction) -> discord.Embed:
         tasks_done: list[str] = []
@@ -576,25 +587,32 @@ class AdminCog(commands.Cog):
             self.log_action(
                 actor=interaction.user,
                 action_key='panel_sync',
-                action_label='Обновить панели',
+                action_label='РћР±РЅРѕРІРёС‚СЊ РїР°РЅРµР»Рё',
                 details=', '.join(tasks_done),
             )
 
         if not tasks_done:
-            return self.build_result_embed(title='Panel Sync', description='Не найдено ни одной панели для обновления.', color=discord.Color.orange())
+            return self.build_result_embed(
+                title='Panel Sync',
+                description='РќРµ РЅР°Р№РґРµРЅРѕ РЅРё РѕРґРЅРѕР№ РїР°РЅРµР»Рё РґР»СЏ РѕР±РЅРѕРІР»РµРЅРёСЏ.',
+                color=discord.Color.orange(),
+            )
 
-        return self.build_result_embed(title='Panel Sync', description='Обновлены панели: ' + ', '.join(f'**{item}**' for item in tasks_done))
+        return self.build_result_embed(
+            title='Panel Sync',
+            description='РћР±РЅРѕРІР»РµРЅС‹ РїР°РЅРµР»Рё: ' + ', '.join(f'**{item}**' for item in tasks_done),
+        )
 
     async def sync_commands(self, interaction: discord.Interaction) -> discord.Embed:
         bot_any = cast(Any, self.bot)
         await bot_any.sync_guild_commands()
 
         if isinstance(interaction.user, discord.Member):
-            self.log_action(actor=interaction.user, action_key='slash_sync', action_label='Синхронизировать команды')
+            self.log_action(actor=interaction.user, action_key='slash_sync', action_label='РЎРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ РєРѕРјР°РЅРґС‹')
 
-        return self.build_result_embed(title='Slash Sync', description='Guild slash-команды успешно пересинхронизированы.')
+        return self.build_result_embed(title='Slash Sync', description='Guild slash-РєРѕРјР°РЅРґС‹ СѓСЃРїРµС€РЅРѕ РїРµСЂРµСЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅС‹.')
 
-    @app_commands.command(name='admin', description='Открыть админ-панель сервера')
+    @app_commands.command(name='admin', description='РћС‚РєСЂС‹С‚СЊ Р°РґРјРёРЅ-РїР°РЅРµР»СЊ СЃРµСЂРІРµСЂР°')
     async def admin(self, interaction: discord.Interaction) -> None:
         error = self.validate_admin_interaction(interaction)
         if error is not None:
@@ -611,6 +629,3 @@ class AdminCog(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(AdminCog(bot), guild=Config.SERVER_OBJ)
-
-
-
