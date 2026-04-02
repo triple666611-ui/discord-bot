@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import random
 import time
@@ -189,6 +189,19 @@ class ShopService:
 
     def get_inventory(self, user_id: int) -> dict[str, int]:
         return self.repository.get_inventory(user_id)
+
+    def get_inventory_display_items(self, user_id: int) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for item_key, qty in self.repository.get_inventory(user_id).items():
+            item = self.get_item(item_key)
+            items.append(
+                {
+                    "key": item_key,
+                    "quantity": qty,
+                    "item": item,
+                }
+            )
+        return items
 
     def list_effects(self, user_id: int) -> dict[str, dict[str, Any]]:
         return self.repository.list_effects(user_id)
@@ -484,3 +497,62 @@ class ShopService:
             return True, "✅ Рамка профиля отключена."
 
         return False, "❌ Этот предмет нельзя деактивировать через магазин."
+
+    def admin_remove_inventory_item(self, user_id: int, item_key: str, quantity: int | None = None) -> tuple[bool, str, dict[str, Any]]:
+        inventory = self.repository.get_inventory(user_id)
+        current_qty = inventory.get(item_key, 0)
+        if current_qty <= 0:
+            return False, "❌ У пользователя нет этого предмета в инвентаре.", {}
+
+        removed_qty = self.repository.remove_inventory_item(user_id, item_key, quantity)
+        if removed_qty <= 0:
+            return False, "❌ Не удалось удалить предмет из инвентаря.", {}
+
+        remaining_qty = max(current_qty - removed_qty, 0)
+        self._cleanup_item_effects(user_id, item_key, remaining_qty)
+        item = self.get_item(item_key)
+        item_name = item.name if item is not None else item_key
+        return True, f"✅ Удалено **{removed_qty}** шт. предмета **{item_name}**.", {
+            "item_key": item_key,
+            "item_name": item_name,
+            "removed_quantity": removed_qty,
+            "remaining_quantity": remaining_qty,
+        }
+
+    def admin_clear_inventory(self, user_id: int) -> tuple[bool, str, dict[str, Any]]:
+        inventory = self.repository.get_inventory(user_id)
+        if not inventory:
+            removed_effects = self.repository.clear_effects(user_id)
+            if removed_effects > 0:
+                return True, "✅ Инвентарь уже был пуст, но активные shop-эффекты пользователя очищены.", {
+                    "removed_total": 0,
+                    "removed_unique_items": 0,
+                    "removed_effects": removed_effects,
+                }
+            return False, "❌ Инвентарь пользователя уже пуст.", {}
+
+        removed_total = self.repository.clear_inventory(user_id)
+        removed_effects = self.repository.clear_effects(user_id)
+        unique_items = len(inventory)
+        return True, "✅ Инвентарь пользователя полностью очищен.", {
+            "removed_total": removed_total,
+            "removed_unique_items": unique_items,
+            "removed_effects": removed_effects,
+        }
+
+    def _cleanup_item_effects(self, user_id: int, item_key: str, remaining_qty: int) -> None:
+        if item_key == "color_profile" and remaining_qty <= 0:
+            self.repository.clear_effect(user_id, "profile_theme")
+            self.repository.clear_effect(user_id, "profile_color")
+        elif item_key == "custom_bg" and remaining_qty <= 0:
+            if self.get_profile_style(user_id).get("theme") == "custom_bg":
+                self.repository.clear_effect(user_id, "profile_theme")
+        elif item_key in {"vip_frame", "bm_shadow_frame"} and remaining_qty <= 0:
+            expected_frame = "vip" if item_key == "vip_frame" else "shadow"
+            if self.get_profile_style(user_id).get("frame") == expected_frame:
+                self.repository.clear_effect(user_id, "profile_frame")
+        elif item_key == "double_win_token" and remaining_qty <= 0:
+            self.repository.clear_effect(user_id, "double_win_armed")
+        elif item_key == "vip_slot_ticket" and remaining_qty <= 0:
+            self.repository.clear_effect(user_id, "vip_slot_armed")
+

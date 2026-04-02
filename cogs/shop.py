@@ -18,6 +18,13 @@ class ShopCog(commands.Cog):
 
     @app_commands.command(name='shop', description='Открыть магазин сервера')
     async def shop(self, interaction: discord.Interaction) -> None:
+        await self._open_shop_view(interaction, mode='main')
+
+    @app_commands.command(name='inventory', description='Открыть инвентарь сервера')
+    async def inventory(self, interaction: discord.Interaction) -> None:
+        await self._open_shop_view(interaction, mode='inventory')
+
+    async def _open_shop_view(self, interaction: discord.Interaction, *, mode: str) -> None:
         if interaction.guild is None:
             await interaction.response.send_message(
                 embed=discord.Embed(
@@ -30,6 +37,9 @@ class ShopCog(commands.Cog):
             return
 
         view = ShopView(self, interaction.user.id)
+        view.mode = mode
+        view.selected_item_key = None
+        view.refresh_components()
         await interaction.response.send_message(
             embed=view.build_current_embed(),
             view=view,

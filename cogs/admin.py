@@ -392,6 +392,7 @@ class AdminCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.profile_service = cast(Any, bot).profile_service
+        self.shop_service = cast(Any, bot).shop_service
         self.audit_repository = AdminAuditRepository(Config.DATA.ADMIN_AUDIT_PATH)
         self.warning_repository = WarningRepository(Config.DATA.WARNINGS_PATH)
 
@@ -689,6 +690,81 @@ class AdminCog(commands.Cog):
         actor = cast(discord.Member, interaction.user)
         await self.record_action(guild=guild, actor=actor, action_key='daily_reset', action_label='Сбросить daily', target=member)
         await interaction.response.send_message(embed=self.build_result_embed(title='Daily reset', description=f'Кулдаун `/daily` для {member.mention} сброшен.'), ephemeral=True)
+    @app_commands.command(name='inventoryremove', description='Удалить предмет из инвентаря пользователя')
+    @app_commands.describe(member='Пользователь', item='Код предмета из магазина', quantity='Сколько удалить')
+    async def inventoryremove(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        item: str,
+        quantity: app_commands.Range[int, 1, 999] = 1,
+    ) -> None:
+        error = self.validate_admin_interaction(interaction)
+        if error is not None:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+
+        success, message, details = self.shop_service.admin_remove_inventory_item(member.id, item, quantity)
+        color = EMERALD if success else discord.Color.red()
+        embed = self.build_result_embed(
+            title='Инвентарь обновлён' if success else 'Не удалось удалить предмет',
+            description=f'{member.mention}\n{message}',
+            color=color,
+        )
+
+        if success:
+            embed.add_field(name='Предмет', value=str(details.get('item_name', item)), inline=True)
+            embed.add_field(name='Удалено', value=str(details.get('removed_quantity', quantity)), inline=True)
+            embed.add_field(name='Осталось', value=str(details.get('remaining_quantity', 0)), inline=True)
+
+            guild = cast(discord.Guild, interaction.guild)
+            actor = cast(discord.Member, interaction.user)
+            await self.record_action(
+                guild=guild,
+                actor=actor,
+                action_key='inventory_remove',
+                action_label='Удалить предмет из инвентаря',
+                target=member,
+                value=int(details.get('removed_quantity', quantity)),
+                details=f"{details.get('item_name', item)} ({item})",
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name='inventoryclear', description='Полностью очистить инвентарь пользователя')
+    @app_commands.describe(member='Пользователь')
+    async def inventoryclear(self, interaction: discord.Interaction, member: discord.Member) -> None:
+        error = self.validate_admin_interaction(interaction)
+        if error is not None:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+
+        success, message, details = self.shop_service.admin_clear_inventory(member.id)
+        color = EMERALD if success else discord.Color.red()
+        embed = self.build_result_embed(
+            title='Инвентарь очищен' if success else 'Инвентарь не изменён',
+            description=f'{member.mention}\n{message}',
+            color=color,
+        )
+
+        if success:
+            embed.add_field(name='Удалено предметов', value=str(details.get('removed_total', 0)), inline=True)
+            embed.add_field(name='Уникальных слотов', value=str(details.get('removed_unique_items', 0)), inline=True)
+            embed.add_field(name='Снято эффектов', value=str(details.get('removed_effects', 0)), inline=True)
+
+            guild = cast(discord.Guild, interaction.guild)
+            actor = cast(discord.Member, interaction.user)
+            await self.record_action(
+                guild=guild,
+                actor=actor,
+                action_key='inventory_clear',
+                action_label='Очистить инвентарь',
+                target=member,
+                value=int(details.get('removed_total', 0)),
+                details=f"effects={details.get('removed_effects', 0)}",
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name='announce', description='Отправить embed-объявление в канал')
     @app_commands.describe(channel='Канал', title='Заголовок', message='Текст объявления')

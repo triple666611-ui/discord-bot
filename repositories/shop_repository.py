@@ -181,6 +181,69 @@ class ShopRepository:
             conn.commit()
         return True
 
+    def remove_inventory_item(self, user_id: int, item_key: str, quantity: int | None = None) -> int:
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT quantity
+                    FROM shop_inventory
+                    WHERE user_id = %s AND item_key = %s
+                    """,
+                    (user_id, item_key),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return 0
+
+                current_qty = int(row[0])
+                if quantity is None or quantity >= current_qty:
+                    removed_qty = current_qty
+                    cur.execute(
+                        """
+                        DELETE FROM shop_inventory
+                        WHERE user_id = %s AND item_key = %s
+                        """,
+                        (user_id, item_key),
+                    )
+                elif quantity > 0:
+                    removed_qty = quantity
+                    cur.execute(
+                        """
+                        UPDATE shop_inventory
+                        SET quantity = quantity - %s
+                        WHERE user_id = %s AND item_key = %s
+                        """,
+                        (quantity, user_id, item_key),
+                    )
+                else:
+                    return 0
+            conn.commit()
+        return removed_qty
+
+    def clear_inventory(self, user_id: int) -> int:
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM(quantity), 0)
+                    FROM shop_inventory
+                    WHERE user_id = %s
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+                total_removed = int(row[0]) if row is not None else 0
+                cur.execute(
+                    """
+                    DELETE FROM shop_inventory
+                    WHERE user_id = %s
+                    """,
+                    (user_id,),
+                )
+            conn.commit()
+        return total_removed
+
     def list_effects(self, user_id: int) -> dict[str, dict[str, Any]]:
         now_ts = int(time.time())
         value_expr = self._effect_value_expr()
@@ -356,3 +419,26 @@ class ShopRepository:
                     (user_id, effect_key),
                 )
             conn.commit()
+
+    def clear_effects(self, user_id: int, effect_keys: list[str] | tuple[str, ...] | None = None) -> int:
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                if effect_keys:
+                    cur.execute(
+                        """
+                        DELETE FROM shop_effects
+                        WHERE user_id = %s AND effect_key = ANY(%s)
+                        """,
+                        (user_id, list(effect_keys)),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        DELETE FROM shop_effects
+                        WHERE user_id = %s
+                        """,
+                        (user_id,),
+                    )
+                removed = cur.rowcount
+            conn.commit()
+        return removed
