@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import discord
 from discord import Interaction
-from discord.app_commands import command, describe, default_permissions
+from discord.app_commands import command, describe
 from discord.ext.commands import Bot, Cog
 
 from ui.notification import Display, SelectionMembers
 from config import Config
+from utils.permissions import has_admin_access
 
 
 class Notification(Cog):
@@ -15,11 +16,17 @@ class Notification(Cog):
 
     @command(name="notification", description="Отправить уведомление")
     @describe(message="Напишите сообщение")
-    @default_permissions(administrator=True)
     async def notification(self, interaction: Interaction, message: str):
         if not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(
                 "Команда доступна только на сервере.",
+                ephemeral=True,
+            )
+            return
+
+        if not has_admin_access(interaction.user):
+            await interaction.response.send_message(
+                "У тебя нет прав для этой команды.",
                 ephemeral=True,
             )
             return

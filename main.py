@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import logging
 
 import discord
@@ -59,6 +59,7 @@ class MyBot(commands.Bot):
             "cogs.report_panel",
             "cogs.notification",
             "cogs.shop",
+            "cogs.admin",
         )
 
     async def sync_guild_commands(self) -> None:

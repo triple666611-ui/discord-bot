@@ -10,6 +10,7 @@ from discord.ext import commands, tasks
 from services.level_service import level_from_xp, xp_for_next_level
 from ui.profile.card_renderer import render_profile_card
 from config import Config
+from utils.permissions import has_admin_access
 
 
 class ProfilesCog(commands.Cog):
@@ -151,7 +152,7 @@ class ProfilesCog(commands.Cog):
         amount: int,
     ) -> None:
         user_member = cast(discord.Member, interaction.user)
-        if not user_member.guild_permissions.administrator:
+        if not has_admin_access(user_member):
             await interaction.response.send_message(
                 "У тебя нет прав для этой команды.",
                 ephemeral=True,
@@ -179,7 +180,7 @@ class ProfilesCog(commands.Cog):
         amount: int,
     ) -> None:
         user_member = cast(discord.Member, interaction.user)
-        if not user_member.guild_permissions.administrator:
+        if not has_admin_access(user_member):
             await interaction.response.send_message("У тебя нет прав для этой команды.", ephemeral=True)
             return
 
@@ -201,7 +202,7 @@ class ProfilesCog(commands.Cog):
         amount: int,
     ) -> None:
         user_member = cast(discord.Member, interaction.user)
-        if not user_member.guild_permissions.administrator:
+        if not has_admin_access(user_member):
             await interaction.response.send_message("У тебя нет прав для этой команды.", ephemeral=True)
             return
 
@@ -217,3 +218,4 @@ class ProfilesCog(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ProfilesCog(bot), guild=Config.SERVER_OBJ)
+

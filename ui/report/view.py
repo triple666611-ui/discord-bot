@@ -4,11 +4,11 @@ from discord.ui import View, button, Button
 
 from config import Config
 from cogs.ui.report.embed import Display
+from utils.permissions import has_admin_access
 
 
 def _is_moderator(member: discord.Member):
-    perms = member.guild_permissions
-    return perms.administrator or perms.manage_messages
+    return has_admin_access(member) or member.guild_permissions.manage_messages
 
 
 class ReportInteraction(View):
