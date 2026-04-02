@@ -1,4 +1,4 @@
-import random
+﻿import random
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -12,23 +12,22 @@ from ui.common.canvas import (
     rounded_box,
 )
 from ui.common.fonts import get_font_pack, load_font
-from ui.common.style import (
-    ACCENT,
-    ACCENT_SOFT,
-    BG_BOTTOM,
-    BG_TOP,
-    CARD_FILL,
-    CARD_OUTLINE,
-    CARD_SHADOW,
-    TEXT,
-    TEXT_MUTED,
-    TEXT_SOFT,
-)
 from utils.images import fetch_image_bytes, fit_cover, image_to_png_bytes, minimal_bg
 
 
 WIDTH = 1400
 HEIGHT = 420
+BG_TOP = (10, 18, 20, 255)
+BG_BOTTOM = (14, 52, 51, 255)
+ACCENT = (82, 218, 180, 255)
+ACCENT_SOFT = (82, 218, 180, 45)
+CARD_FILL = (10, 22, 24, 220)
+CARD_OUTLINE = (82, 218, 180, 95)
+CARD_SHADOW = (0, 0, 0, 165)
+TEXT = (238, 255, 250, 245)
+TEXT_SOFT = (173, 240, 223, 235)
+TEXT_MUTED = (122, 188, 175, 220)
+GLOW_ALT = (120, 255, 220, 35)
 
 
 async def _build_background(width: int, height: int) -> Image.Image:
@@ -39,7 +38,7 @@ async def _build_background(width: int, height: int) -> Image.Image:
         try:
             bg_img = Image.open(BytesIO(bg_bytes)).convert("RGBA")
             bg = fit_cover(bg_img, width, height).filter(ImageFilter.GaussianBlur(8))
-            overlay = Image.new("RGBA", (width, height), (0, 0, 0, 120))
+            overlay = Image.new("RGBA", (width, height), (5, 14, 16, 170))
             bg = Image.alpha_composite(bg, overlay)
         except Exception:
             bg = minimal_bg(width, height)
@@ -53,10 +52,10 @@ async def _build_background(width: int, height: int) -> Image.Image:
     for _ in range(3):
         cx = random.randint(0, width)
         cy = random.randint(0, height)
-        rr = random.randint(260, 420)
+        rr = random.randint(250, 410)
         bdraw.ellipse(
             (cx - rr, cy - rr, cx + rr, cy + rr),
-            fill=random.choice([ACCENT_SOFT, (88, 101, 242, 55)]),
+            fill=random.choice([ACCENT_SOFT, GLOW_ALT]),
         )
 
     blobs = blobs.filter(ImageFilter.GaussianBlur(90))
@@ -75,6 +74,15 @@ async def build_minimal_welcome_banner(guild_name: str) -> bytes:
 
     card_x1, card_y1 = 90, 85
     card_x2, card_y2 = WIDTH - 90, HEIGHT - 85
+    inner_pad_x = 58
+    inner_pad_y = 30
+    accent_width = 8
+    accent_gap = 28
+    accent_x1 = card_x1 + inner_pad_x - accent_gap - accent_width
+    accent_x2 = accent_x1 + accent_width
+    accent_y1 = card_y1 + inner_pad_y
+    accent_y2 = card_y2 - inner_pad_y
+    content_x = card_x1 + inner_pad_x
 
     base = add_blurred_shadow(
         base,
@@ -100,7 +108,7 @@ async def build_minimal_welcome_banner(guild_name: str) -> bytes:
 
     rounded_box(
         draw,
-        (card_x1 + 22, card_y1 + 22, card_x1 + 28, card_y2 - 22),
+        (accent_x1, accent_y1, accent_x2, accent_y2),
         radius=6,
         fill=ACCENT,
     )
@@ -108,24 +116,31 @@ async def build_minimal_welcome_banner(guild_name: str) -> bytes:
     safe_guild = clamp_text(guild_name, 26)
 
     draw.text(
-        (card_x1 + 60, card_y1 + 42),
+        (content_x, card_y1 + 42),
         "WELCOME",
         font=title_font,
         fill=TEXT,
     )
 
     draw.text(
-        (card_x1 + 60, card_y1 + 145),
+        (content_x, card_y1 + 145),
         safe_guild,
         font=subtitle_font,
         fill=TEXT_SOFT,
     )
 
     draw.text(
-        (card_x1 + 60, card_y2 - 52),
+        (content_x, card_y2 - 88),
+        "Выберите роли ниже и начните знакомство с сервером.",
+        font=body_font,
+        fill=TEXT,
+    )
+
+    draw.text(
+        (content_x, card_y2 - 52),
         "Роли можно изменить в любой момент через панель ниже.",
         font=small_font,
-        fill=TEXT_SOFT,
+        fill=TEXT_MUTED,
     )
 
     return image_to_png_bytes(base)
