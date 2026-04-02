@@ -417,6 +417,7 @@ class AdminCog(commands.Cog):
         return discord.Embed(title=title, description=description, color=color)
 
     def build_userinfo_embed(self, member: discord.Member) -> discord.Embed:
+        profile = self.profile_service.get_profile(member.id)
         roles = [role.mention for role in member.roles if role != member.guild.default_role]
         roles_value = ', '.join(roles[:8]) if roles else 'Нет ролей'
         if len(roles) > 8:
@@ -610,5 +611,6 @@ class AdminCog(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(AdminCog(bot), guild=Config.SERVER_OBJ)
+
 
 
