@@ -82,6 +82,11 @@ class ProfilesCog(commands.Cog):
     ) -> None:
         member = member or cast(discord.Member, interaction.user)
         profile = self.profile_service.get_profile(member.id)
+        staff_badge = None
+        if member.guild_permissions.administrator:
+            staff_badge = 'admin'
+        elif any(role.id == Config.MOD_ROLE_ID for role in member.roles):
+            staff_badge = 'moder'
 
         level, current_xp = level_from_xp(profile.xp)
         style = {'theme': None, 'frame': None}
@@ -100,6 +105,7 @@ class ProfilesCog(commands.Cog):
             'xp_needed': xp_for_next_level(level),
             'theme': style.get('theme'),
             'frame': style.get('frame'),
+            'staff_badge': staff_badge,
         })
         file = discord.File(image, filename="profile.png")
 
@@ -218,4 +224,3 @@ class ProfilesCog(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ProfilesCog(bot), guild=Config.SERVER_OBJ)
-

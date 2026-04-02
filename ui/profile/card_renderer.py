@@ -1,4 +1,4 @@
-﻿import io
+import io
 from pathlib import Path
 
 import aiohttp
@@ -101,6 +101,15 @@ def format_frame_name(frame):
     return mapping.get(frame, str(frame))
 
 
+def format_staff_badge(staff_badge):
+    mapping = {
+        None: None,
+        "admin": "admin",
+        "moder": "moder",
+    }
+    return mapping.get(staff_badge, str(staff_badge))
+
+
 async def render_profile_card(member, profile):
     username = member.display_name
     user_id = member.id
@@ -113,6 +122,7 @@ async def render_profile_card(member, profile):
 
     theme = normalize_theme(profile.get("theme"))
     frame = normalize_frame(profile.get("frame"))
+    staff_badge = format_staff_badge(profile.get("staff_badge"))
     avatar_url = member.display_avatar.url
 
     theme_palette = {
@@ -173,6 +183,21 @@ async def render_profile_card(member, profile):
             "progress_fill": (140, 110, 255, 255),
         }
 
+    if staff_badge == "admin":
+        palette = {
+            **palette,
+            "accent": (255, 99, 132),
+            "panel_stroke": (255, 99, 132, 130),
+            "progress_fill": (255, 99, 132, 255),
+        }
+    elif staff_badge == "moder":
+        palette = {
+            **palette,
+            "accent": (74, 163, 255),
+            "panel_stroke": (74, 163, 255, 130),
+            "progress_fill": (74, 163, 255, 255),
+        }
+
     base = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     draw_vertical_gradient(base, palette["bg_top"], palette["bg_bottom"])
     draw_glow(base, (-120, -80, 470, 370), palette["accent"], 34, 70)
@@ -208,6 +233,10 @@ async def render_profile_card(member, profile):
     subtitle = "Server player"
     if frame == "vip_frame":
         subtitle = "Server player, collector, VIP"
+    if staff_badge == "admin":
+        subtitle = "Server admin"
+    elif staff_badge == "moder":
+        subtitle = "Server moderator"
     draw.text((107, 350), subtitle, font=label_font, fill=palette["secondary_text"])
     draw.text((107, 388), f"ID {user_id}", font=small_font, fill=palette["muted_text"])
 
@@ -242,6 +271,8 @@ async def render_profile_card(member, profile):
         f"Theme: {format_theme_name(theme)}",
         f"Frame: {format_frame_name(frame)}",
     ]
+    if staff_badge is not None:
+        status_items.append(f"Role: {staff_badge}")
     for index, text in enumerate(status_items):
         top = 334 + index * 66
         rounded_panel(draw, (970, top, 1220, top + 54), 16, palette["panel_fill"])
@@ -252,6 +283,12 @@ async def render_profile_card(member, profile):
         badge_y = 102
         rounded_panel(draw, (badge_x, badge_y, badge_x + 150, badge_y + 42), 16, palette["progress_fill"])
         draw.text((badge_x + 24, badge_y + 11), "VIP", font=small_font, fill=(35, 24, 8))
+
+    if staff_badge is not None:
+        badge_x = 106
+        badge_y = 430
+        rounded_panel(draw, (badge_x, badge_y, badge_x + 140, badge_y + 42), 16, palette["progress_fill"])
+        draw.text((badge_x + 22, badge_y + 11), staff_badge.upper(), font=small_font, fill=palette["panel"][:3])
 
     buffer = io.BytesIO()
     base.save(buffer, "PNG")
