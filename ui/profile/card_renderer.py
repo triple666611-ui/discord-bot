@@ -385,14 +385,23 @@ async def render_profile_card(member, profile):
     draw.text((500, 408), f"{remaining_xp} XP left to next level", font=small_font, fill=palette['muted_text'])
 
     draw.text((970, 290), 'Status', font=label_font, fill=palette['secondary_text'])
+    profile_color_text = 'Standard'
+    if theme == 'color_profile':
+        profile_color_text = format_profile_color_name(profile_color)
+
+    profile_status = None
+    if staff_badge is not None:
+        profile_status = staff_badge.upper()
+    elif frame == 'vip_frame':
+        profile_status = 'VIP'
+
     status_items = [
-        f"Theme: {format_theme_name(theme)}",
+        f"Color profile: {profile_color_text}",
         f"Frame: {format_frame_name(frame)}",
     ]
-    if theme == 'color_profile':
-        status_items.append(f"Color: {format_profile_color_name(profile_color)}")
-    if staff_badge is not None:
-        status_items.append(f"Role: {staff_badge}")
+    if profile_status is not None:
+        status_items.append(f"Status: {profile_status}")
+
     for index, text in enumerate(status_items):
         top = 334 + index * 66
         rounded_panel(draw, (970, top, 1220, top + 54), 16, palette['panel_fill'])
@@ -414,3 +423,4 @@ async def render_profile_card(member, profile):
     base.save(buffer, 'PNG')
     buffer.seek(0)
     return buffer
+
