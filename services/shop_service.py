@@ -7,7 +7,7 @@ from typing import Any
 
 from config import Config
 from repositories.shop_repository import ShopRepository
-from services.profile_service import ProfileService
+from services.profile_service import DailyClaimResult, ProfileService
 
 DAY_SECONDS = 24 * 60 * 60
 
@@ -254,10 +254,18 @@ class ShopService:
             amount = int(amount * 1.5)
         return amount
 
-    def claim_daily(self, user_id: int) -> int:
-        self.profile_service.repository.set_daily_ts(user_id, int(time.time()))
+    def claim_daily(self, user_id: int) -> DailyClaimResult:
+        now = int(time.time())
+        streak_count, streak_kept = self.profile_service.calculate_next_daily_streak(user_id, now=now)
+        self.profile_service.repository.set_daily_state(user_id, now, streak_count)
         reward = self.get_daily_reward_amount(user_id)
-        return self.profile_service.add_balance(user_id, reward)
+        new_balance = self.profile_service.add_balance(user_id, reward)
+        return DailyClaimResult(
+            reward=reward,
+            new_balance=new_balance,
+            streak_count=streak_count,
+            streak_kept=streak_kept,
+        )
 
     def apply_game_win_bonus(self, user_id: int, base_win: int) -> tuple[int, list[str]]:
         final_win = base_win

@@ -15,6 +15,12 @@ class Profile:
     balance: int
 
 
+@dataclass(slots=True)
+class DailyState:
+    last_ts: int | None
+    streak_count: int
+
+
 class ProfileRepository:
     def __init__(self, db_path: Path | None = None):
         # db_path оставлен только для совместимости со старым main.py
@@ -76,8 +82,16 @@ class ProfileRepository:
                     """
                     CREATE TABLE IF NOT EXISTS daily_cooldown (
                         user_id BIGINT PRIMARY KEY,
-                        last_ts BIGINT NOT NULL
+                        last_ts BIGINT NOT NULL,
+                        streak_count INTEGER NOT NULL DEFAULT 0
                     )
+                    """
+                )
+
+                cur.execute(
+                    """
+                    ALTER TABLE daily_cooldown
+                    ADD COLUMN IF NOT EXISTS streak_count INTEGER NOT NULL DEFAULT 0
                     """
                 )
 
@@ -195,12 +209,12 @@ class ProfileRepository:
                 )
                 conn.commit()
 
-    def get_daily_ts(self, user_id: int) -> int | None:
+    def get_daily_state(self, user_id: int) -> DailyState:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT last_ts
+                    SELECT last_ts, streak_count
                     FROM daily_cooldown
                     WHERE user_id = %s
                     """,
@@ -208,18 +222,35 @@ class ProfileRepository:
                 )
                 row = cur.fetchone()
 
-        return int(row[0]) if row else None
+        if row is None:
+            return DailyState(last_ts=None, streak_count=0)
 
-    def set_daily_ts(self, user_id: int, ts: int) -> None:
+        last_ts = int(row[0]) if row[0] is not None else None
+        streak_count = int(row[1]) if row[1] is not None else 0
+        return DailyState(last_ts=last_ts, streak_count=streak_count)
+
+    def get_daily_ts(self, user_id: int) -> int | None:
+        return self.get_daily_state(user_id).last_ts
+
+    def set_daily_state(self, user_id: int, ts: int, streak_count: int) -> None:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO daily_cooldown (user_id, last_ts)
-                    VALUES (%s, %s)
+                    INSERT INTO daily_cooldown (user_id, last_ts, streak_count)
+                    VALUES (%s, %s, %s)
                     ON CONFLICT (user_id)
-                    DO UPDATE SET last_ts = EXCLUDED.last_ts
+                    DO UPDATE SET
+                        last_ts = EXCLUDED.last_ts,
+                        streak_count = EXCLUDED.streak_count
                     """,
-                    (user_id, ts),
+                    (user_id, ts, streak_count),
                 )
                 conn.commit()
+
+    def set_daily_ts(self, user_id: int, ts: int) -> None:
+        state = self.get_daily_state(user_id)
+        self.set_daily_state(user_id, ts, state.streak_count)
+
+    def reset_daily_state(self, user_id: int) -> None:
+        self.set_daily_state(user_id, 0, 0)

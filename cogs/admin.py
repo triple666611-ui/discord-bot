@@ -685,7 +685,7 @@ class AdminCog(commands.Cog):
         if error is not None:
             await interaction.response.send_message(error, ephemeral=True)
             return
-        self.profile_service.repository.set_daily_ts(member.id, 0)
+        self.profile_service.repository.reset_daily_state(member.id)
         guild = cast(discord.Guild, interaction.guild)
         actor = cast(discord.Member, interaction.user)
         await self.record_action(guild=guild, actor=actor, action_key='daily_reset', action_label='Сбросить daily', target=member)

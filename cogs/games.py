@@ -608,15 +608,20 @@ class Games(commands.Cog):
                 ephemeral=True,
             )
             return
-        reward_amount = Config.DAILY_REWARD
         if self.shop_service is not None:
-            reward_amount = self.shop_service.get_daily_reward_amount(interaction.user.id)
-            new_balance = self.shop_service.claim_daily(interaction.user.id)
+            daily_result = self.shop_service.claim_daily(interaction.user.id)
         else:
-            new_balance = self.profile_service.claim_daily(interaction.user.id)
+            daily_result = self.profile_service.claim_daily(interaction.user.id)
+        streak_line = f"\U0001f525 \u0421\u0435\u0440\u0438\u044f: **{daily_result.streak_count}** \u0434\u043d. \u043f\u043e\u0434\u0440\u044f\u0434"
+        if not daily_result.streak_kept and daily_result.streak_count == 1:
+            streak_line += "\n\u26a0\ufe0f \u041f\u0440\u043e\u0448\u043b\u0430\u044f \u0441\u0435\u0440\u0438\u044f \u0441\u0431\u0440\u043e\u0448\u0435\u043d\u0430, \u043d\u043e \u043d\u043e\u0432\u0430\u044f \u0443\u0436\u0435 \u043d\u0430\u0447\u0430\u043b\u0430\u0441\u044c."
         embed = discord.Embed(
             title="🎁 Ежедневная награда",
-            description=f"Ты получил **{reward_amount}** 🪙\nНовый баланс: **{new_balance}** 🪙",
+            description=(
+                f"\u0422\u044b \u043f\u043e\u043b\u0443\u0447\u0438\u043b **{daily_result.reward}** \U0001fa99\n"
+                f"\u041d\u043e\u0432\u044b\u0439 \u0431\u0430\u043b\u0430\u043d\u0441: **{daily_result.new_balance}** \U0001fa99\n"
+                f"{streak_line}"
+            ),
             color=discord.Color.green(),
         )
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
