@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import datetime as dt
 from typing import Any, cast
@@ -21,6 +21,7 @@ CATEGORY_STYLES = {
 EFFECT_LABELS = {
     'profile_theme': 'Тема профиля',
     'profile_frame': 'Рамка профиля',
+    'profile_color': 'Цвет профиля',
     'double_win_armed': 'Бустер x2',
     'vip_slot_armed': 'VIP слот',
     'vip_subscription': 'VIP подписка',
@@ -109,6 +110,74 @@ class ShopItemSelect(discord.ui.Select['ShopView']):
         )
 
 
+class ProfileColorSelect(discord.ui.Select['ProfileColorPickerView']):
+    def __init__(self, picker_view: 'ProfileColorPickerView') -> None:
+        self.picker_view = picker_view
+        options: list[discord.SelectOption] = []
+        current_color = picker_view.shop_service.get_profile_style(picker_view.user_id).get('color')
+
+        for color_key, preset in picker_view.shop_service.get_profile_color_presets().items():
+            options.append(
+                discord.SelectOption(
+                    label=preset['label'],
+                    value=color_key,
+                    description=f"Цвет профиля: {preset['label']}",
+                    emoji=preset['emoji'],
+                    default=color_key == current_color,
+                )
+            )
+
+        super().__init__(
+            placeholder='Выберите цвет профиля',
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if not await self.picker_view.ensure_owner(interaction):
+            return
+
+        color_key = self.values[0]
+        success, message = self.picker_view.shop_service.set_profile_color(self.picker_view.user_id, color_key)
+        result_embed = self.picker_view.build_result_embed(message, success)
+
+        if success:
+            self.picker_view.stop()
+            for child in self.picker_view.children:
+                child.disabled = True
+
+        await interaction.response.edit_message(embed=result_embed, view=self.picker_view)
+
+
+class ProfileColorPickerView(discord.ui.View):
+    def __init__(self, shop_service: Any, user_id: int):
+        super().__init__(timeout=300)
+        self.shop_service = shop_service
+        self.user_id = user_id
+        self.add_item(ProfileColorSelect(self))
+
+    async def ensure_owner(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title='Ошибка',
+                    description='Это меню выбора цвета открыто для другого пользователя.',
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    def build_result_embed(self, message: str, success: bool) -> discord.Embed:
+        color = discord.Color.green() if success else discord.Color.red()
+        title = 'Цвет профиля обновлён' if success else 'Не удалось изменить цвет'
+        embed = discord.Embed(title=title, description=message, color=color)
+        embed.set_footer(text='Профиль сервера • настройка цветного профиля')
+        return embed
+
+
 class ShopView(discord.ui.View):
     def __init__(self, cog: Any, user_id: int) -> None:
         super().__init__(timeout=600)
@@ -161,7 +230,10 @@ class ShopView(discord.ui.View):
     def format_effect(self, effect_key: str, effect_data: dict[str, Any]) -> str:
         label = EFFECT_LABELS.get(effect_key, effect_key.replace('_', ' ').title())
         raw_value = effect_data.get('value')
-        value = EFFECT_VALUES.get(str(raw_value), str(raw_value))
+        if effect_key == 'profile_color':
+            value = self.shop_service.get_profile_color_label(raw_value)
+        else:
+            value = EFFECT_VALUES.get(str(raw_value), str(raw_value))
         expires_text = self.format_ts(effect_data.get('expires_ts'))
         return f'• **{label}**: {value} • до {expires_text}'
 
@@ -239,7 +311,7 @@ class ShopView(discord.ui.View):
         )
         embed.add_field(
             name='💡 Подсказка',
-            value='Сначала открой раздел, затем выбери предмет из списка и используй кнопку действия.',
+            value='Если у тебя куплен цветной профиль, после использования предмета можно сразу выбрать его цвет.',
             inline=False,
         )
         return self.apply_embed_style(embed, discord.Color.blurple())
@@ -249,7 +321,7 @@ class ShopView(discord.ui.View):
         embed = discord.Embed(
             title='🎨 Каталог магазина',
             description=(
-                'Выберите предмет в меню ниже. В каталоге показаны только названия, цена и описание без технических кодов.\n\n'
+                'Выберите предмет в меню ниже. В каталоге показаны названия, цена и описание без технических кодов.\n\n'
                 f'**Баланс:** {profile.balance} монет'
             ),
             color=discord.Color.blurple(),
@@ -273,6 +345,7 @@ class ShopView(discord.ui.View):
         effects = self.shop_service.list_effects(self.user_id)
         profile = self.profile_service.get_profile(self.user_id)
         active_cosmetics = self.shop_service.get_active_cosmetics(self.user_id)
+        style = self.shop_service.get_profile_style(self.user_id)
 
         embed = discord.Embed(
             title='🎒 Твой инвентарь',
@@ -291,6 +364,8 @@ class ShopView(discord.ui.View):
                     markers.append('активный фон')
                 if item_key == active_cosmetics.get('frame'):
                     markers.append('активная рамка')
+                if item_key == 'color_profile' and style.get('theme') == 'color':
+                    markers.append(f"цвет: {self.shop_service.get_profile_color_label(style.get('color'))}")
                 suffix = f" • {' / '.join(markers)}" if markers else ''
                 lines.append(f'{emoji} **{item_name}** x{qty}{suffix}')
             embed.add_field(name='📦 Предметы', value='\n'.join(lines), inline=False)
@@ -412,6 +487,17 @@ class ShopView(discord.ui.View):
             embed=self.build_current_embed(),
             view=self,
         )
+
+        if success and item.key == 'color_profile':
+            picker_view = ProfileColorPickerView(self.shop_service, self.user_id)
+            result_embed.add_field(
+                name='🎨 Настройка цвета',
+                value='Выбери цвет в меню под этим сообщением. Его можно менять повторно через инвентарь.',
+                inline=False,
+            )
+            await interaction.followup.send(embed=result_embed, view=picker_view, ephemeral=True)
+            return
+
         await interaction.followup.send(embed=result_embed, ephemeral=True)
 
     async def handle_deactivate(self, interaction: discord.Interaction) -> None:

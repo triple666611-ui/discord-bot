@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import random
 import time
@@ -10,6 +10,17 @@ from repositories.shop_repository import ShopRepository
 from services.profile_service import ProfileService
 
 DAY_SECONDS = 24 * 60 * 60
+
+PROFILE_COLOR_PRESETS: dict[str, dict[str, str]] = {
+    "violet": {"label": "Violet", "emoji": "🟣"},
+    "emerald": {"label": "Emerald", "emoji": "🟢"},
+    "ruby": {"label": "Ruby", "emoji": "🔴"},
+    "ocean": {"label": "Ocean", "emoji": "🔵"},
+    "sunset": {"label": "Sunset", "emoji": "🟠"},
+    "gold": {"label": "Gold", "emoji": "🟡"},
+    "pink": {"label": "Pink", "emoji": "🌸"},
+    "ice": {"label": "Ice", "emoji": "💠"},
+}
 
 
 @dataclass(slots=True)
@@ -187,6 +198,7 @@ class ShopService:
         return {
             "theme": effects.get("profile_theme", {}).get("value"),
             "frame": effects.get("profile_frame", {}).get("value"),
+            "color": effects.get("profile_color", {}).get("value"),
         }
 
     def get_active_cosmetics(self, user_id: int) -> dict[str, str | None]:
@@ -208,6 +220,17 @@ class ShopService:
             "theme": active_theme,
             "frame": active_frame,
         }
+
+    def get_profile_color_presets(self) -> dict[str, dict[str, str]]:
+        return PROFILE_COLOR_PRESETS
+
+    def get_profile_color_label(self, color_key: str | None) -> str:
+        if color_key is None:
+            return PROFILE_COLOR_PRESETS["violet"]["label"]
+        preset = PROFILE_COLOR_PRESETS.get(color_key)
+        if preset is None:
+            return color_key.replace("_", " ").title()
+        return preset["label"]
 
     def has_vip(self, user_id: int) -> bool:
         return self.repository.get_effect(user_id, "vip_subscription") is not None
@@ -389,7 +412,9 @@ class ShopService:
 
         if item_key == "color_profile":
             self.repository.set_effect(user_id, "profile_theme", "color")
-            return True, "✅ Активирован стиль **Цветной профиль**. Изменения уже видны в `/profile`."
+            if self.repository.get_effect(user_id, "profile_color") is None:
+                self.repository.set_effect(user_id, "profile_color", "violet")
+            return True, "✅ Цветной профиль активирован. Теперь можно выбрать цвет в меню ниже."
 
         if item_key == "custom_bg":
             self.repository.set_effect(user_id, "profile_theme", "custom_bg")
@@ -420,6 +445,21 @@ class ShopService:
 
         return False, "❌ Этот предмет нельзя использовать вручную."
 
+    def set_profile_color(self, user_id: int, color_key: str) -> tuple[bool, str]:
+        if color_key not in PROFILE_COLOR_PRESETS:
+            return False, "❌ Такого цвета профиля нет в списке."
+
+        inventory = self.repository.get_inventory(user_id)
+        if inventory.get("color_profile", 0) <= 0:
+            return False, "❌ Сначала нужно купить цветной профиль."
+
+        if self.get_profile_style(user_id).get("theme") != "color":
+            self.repository.set_effect(user_id, "profile_theme", "color")
+
+        self.repository.set_effect(user_id, "profile_color", color_key)
+        label = self.get_profile_color_label(color_key)
+        return True, f"✅ Цвет профиля изменён на **{label}**. Новый вид уже доступен в `/profile`."
+
     def deactivate_item(self, user_id: int, item_key: str) -> tuple[bool, str]:
         inventory = self.repository.get_inventory(user_id)
         if inventory.get(item_key, 0) <= 0:
@@ -431,6 +471,8 @@ class ShopService:
             if current_theme != expected_theme:
                 return False, "❌ Этот стиль сейчас не активирован."
             self.repository.clear_effect(user_id, "profile_theme")
+            if item_key == "color_profile":
+                self.repository.clear_effect(user_id, "profile_color")
             return True, "✅ Фоновая кастомизация профиля отключена."
 
         if item_key in {"vip_frame", "bm_shadow_frame"}:

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import time
 from typing import Any, cast
@@ -89,13 +89,13 @@ class ProfilesCog(commands.Cog):
             staff_badge = 'moder'
 
         level, current_xp = level_from_xp(profile.xp)
-        style = {'theme': None, 'frame': None}
+        style = {'theme': None, 'frame': None, 'color': None}
         shop_service = getattr(self.bot, 'shop_service', None)
         if shop_service is not None:
             try:
                 style = shop_service.get_profile_style(member.id)
             except Exception:
-                style = {'theme': None, 'frame': None}
+                style = {'theme': None, 'frame': None, 'color': None}
 
         image = await render_profile_card(member, {
             'level': level,
@@ -105,6 +105,7 @@ class ProfilesCog(commands.Cog):
             'xp_needed': xp_for_next_level(level),
             'theme': style.get('theme'),
             'frame': style.get('frame'),
+            'color': style.get('color'),
             'staff_badge': staff_badge,
         })
         file = discord.File(image, filename="profile.png")
