@@ -690,8 +690,42 @@ class AdminCog(commands.Cog):
         actor = cast(discord.Member, interaction.user)
         await self.record_action(guild=guild, actor=actor, action_key='daily_reset', action_label='Сбросить daily', target=member)
         await interaction.response.send_message(embed=self.build_result_embed(title='Daily reset', description=f'Кулдаун `/daily` для {member.mention} сброшен.'), ephemeral=True)
+    async def inventory_item_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        del interaction
+        query = current.strip().lower()
+        items_by_key: dict[str, Any] = {}
+
+        for group in self.shop_service.get_catalog().values():
+            for item in group:
+                items_by_key[item.key] = item
+
+        for extra_item in (
+            self.shop_service.get_black_market_offer(),
+            self.shop_service.get_item('bm_shadow_frame'),
+            self.shop_service.get_item('bm_lucky_case'),
+            self.shop_service.get_item('bm_double_bundle'),
+        ):
+            if extra_item is not None:
+                items_by_key[extra_item.key] = extra_item
+
+        choices: list[app_commands.Choice[str]] = []
+        for item in items_by_key.values():
+            haystack = f'{item.key} {item.name} {item.category}'.lower()
+            if query and query not in haystack:
+                continue
+
+            choice_name = f'{item.name} [{item.key}]'
+            choices.append(app_commands.Choice(name=choice_name[:100], value=item.key))
+
+        choices.sort(key=lambda choice: choice.name)
+        return choices[:25]
     @app_commands.command(name='inventoryremove', description='Удалить предмет из инвентаря пользователя')
     @app_commands.describe(member='Пользователь', item='Код предмета из магазина', quantity='Сколько удалить')
+    @app_commands.autocomplete(item=inventory_item_autocomplete)
     async def inventoryremove(
         self,
         interaction: discord.Interaction,
