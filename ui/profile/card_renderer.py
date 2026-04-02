@@ -385,27 +385,35 @@ async def render_profile_card(member, profile):
     draw.text((500, 408), f"{remaining_xp} XP left to next level", font=small_font, fill=palette['muted_text'])
 
     draw.text((970, 290), 'Status', font=label_font, fill=palette['secondary_text'])
-    profile_color_text = 'Standard'
+    profile_color_text = 'Стандарт'
     if theme == 'color_profile':
         profile_color_text = format_profile_color_name(profile_color)
 
     profile_status = None
     if staff_badge is not None:
-        profile_status = staff_badge.upper()
+        if staff_badge == 'admin':
+            profile_status = 'ADMIN'
+        elif staff_badge == 'moder':
+            profile_status = 'MODER'
     elif frame == 'vip_frame':
         profile_status = 'VIP'
 
     status_items = [
-        f"Color profile: {profile_color_text}",
-        f"Frame: {format_frame_name(frame)}",
+        f"Цвет профиля: {profile_color_text}",
     ]
     if profile_status is not None:
-        status_items.append(f"Status: {profile_status}")
+        status_items.append(f"Роль: {profile_status}")
+
+    status_box_left = 970
+    status_box_right = 1260
+    status_box_height = 48
+    status_box_gap = 12
+    status_start_top = 330
 
     for index, text in enumerate(status_items):
-        top = 334 + index * 66
-        rounded_panel(draw, (970, top, 1220, top + 54), 16, palette['panel_fill'])
-        draw.text((994, top + 13), text, font=small_font, fill=palette['primary_text'])
+        top = status_start_top + index * (status_box_height + status_box_gap)
+        rounded_panel(draw, (status_box_left, top, status_box_right, top + status_box_height), 16, palette['panel_fill'])
+        draw.text((994, top + 10), text, font=small_font, fill=palette['primary_text'])
 
     if frame == 'vip_frame':
         badge_x = 240
@@ -423,4 +431,5 @@ async def render_profile_card(member, profile):
     base.save(buffer, 'PNG')
     buffer.seek(0)
     return buffer
+
 
